@@ -1,0 +1,2185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mile Marker">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex">
+<title>Mile Marker</title>
+<link rel="apple-touch-icon" href="mm-icon.png">
+<style>
+  :root{
+    --bg:#F2F2F7; --cell:#FFFFFF; --label:#000000; --secondary:#6C6C70; --tertiary:#AEAEB2;
+    --sep:#C6C6C8; --blue:#007AFF; --green:#34C759; --orange:#FF9500; --red:#FF3B30;
+    /* spacing + radius scale (design/sf-move-stats-dashboard-mockup.html) — every new component measures in these */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --r:24px; --r2:16px;
+    --teal:#30B0C7; --amber:#FFCC00; --brown:#A2845E; --purple:#AF52DE; --fill:#E9E9EB; --tabh:56px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{background:#F2F2F7 !important;}
+  body{color:var(--label);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+    font-size:17px;line-height:1.35;-webkit-font-smoothing:antialiased;
+    margin:0;}
+  /* app shell: body never scrolls; one scroll container; tab bar is a body child with no transformed ancestors */
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none;}
+  #scroll{position:absolute;top:0;left:0;right:0;bottom:calc(var(--tabh) + env(safe-area-inset-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  .wrap{max-width:640px;margin:0 auto;padding:8px 16px 24px;}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+
+  /* hero */
+  .sign{margin:10px 0 18px;}
+  .sign .route{font-size:13px;font-weight:600;color:var(--secondary);text-transform:uppercase;letter-spacing:.04em;}
+  .sign h1{font-size:34px;font-weight:800;letter-spacing:.2px;margin:2px 0 4px;}
+  .sign .sub{font-size:15px;color:var(--secondary);}
+  .sign .departline{font-size:15px;font-weight:600;color:var(--blue);margin:0 0 3px;}
+
+  /* countdown bar */
+  .roadbar{background:var(--cell);border-radius:14px;padding:14px 16px;margin-bottom:18px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+  .roadbar .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .roadbar .lbl{font-size:13px;font-weight:600;color:var(--secondary);text-transform:uppercase;letter-spacing:.03em;}
+  .roadbar .num{font-size:17px;font-weight:700;}
+  .road{height:6px;border-radius:3px;background:var(--fill);overflow:hidden;}
+  .road .fill{height:100%;border-radius:3px;background:var(--orange);width:0;transition:width .4s;}
+  .chipsrow{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px;}
+  .chipsrow span{font-size:12px;font-weight:600;background:var(--cell);color:var(--secondary);border-radius:999px;padding:7px 12px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+  .chipsrow span.hot{background:#000;color:#fff;}
+
+  /* cards + rows */
+  .card{background:var(--cell);border-radius:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);overflow:hidden;}
+  .sec-head{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;cursor:pointer;user-select:none;}
+  .sec-head .t{font-size:17px;font-weight:700;}
+  .sec-head .m{font-size:15px;color:var(--secondary);display:flex;align-items:center;gap:8px;}
+  .sec-head .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+  .chev{display:inline-block;transition:transform .2s;font-size:12px;color:var(--tertiary);}
+  .card.closed .sec-body,.card.closed .sec-note{display:none;}
+  .card.closed .chev{transform:rotate(-90deg);}
+  .sec-note{padding:0 16px 10px;font-size:13px;color:var(--secondary);}
+  .sec-body{padding-bottom:6px;}
+
+  .check{display:flex;align-items:flex-start;gap:12px;padding:11px 16px;position:relative;cursor:pointer;user-select:none;}
+  .check + .check::before{content:"";position:absolute;left:52px;right:0;top:0;height:.5px;background:var(--sep);}
+  .check .ring{flex:none;margin-top:1px;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--tertiary);display:flex;align-items:center;justify-content:center;color:transparent;font-weight:700;font-size:14px;}
+  .check.on .ring{background:var(--green);border-color:var(--green);color:#fff;}
+  .check .ct{font-size:16px;}
+  .check .cd{font-size:13px;color:var(--secondary);margin-top:1px;}
+  .check.on .ct{color:var(--secondary);text-decoration:line-through;text-decoration-color:var(--tertiary);}
+  .check .xdel{flex:none;align-self:center;margin-left:auto;width:26px;height:26px;font-size:15px;line-height:1;color:var(--red);border:1px solid var(--red);background:none;border-radius:999px;cursor:pointer;font-family:inherit;}
+
+  .addrow{padding:11px 16px;position:relative;}
+  .addrow::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--sep);}
+  .addrow input{width:100%;font-family:inherit;font-size:15px;padding:9px 12px;border:1px solid var(--sep);border-radius:10px;outline:none;background:var(--cell);color:var(--label);}
+  .addrow input:focus{border-color:var(--blue);}
+
+  .chips{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .chip{font-size:13px;font-weight:600;padding:8px 13px;border-radius:999px;border:none;background:var(--cell);color:var(--blue);box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer;font-family:inherit;}
+  .chip.on{background:var(--blue);color:#fff;}
+  .chip.dim{opacity:.4;pointer-events:none;}
+  .chip.showing{color:var(--secondary);cursor:default;}
+  .chips[hidden]{display:none;}
+  .empty{padding:14px 16px;font-size:14px;color:var(--secondary);text-align:center;}
+
+  .btns{padding:4px 16px 14px;}
+  .btn{display:inline-block;font-size:15px;font-weight:600;padding:10px 14px;border-radius:10px;border:none;background:var(--fill);color:var(--blue);cursor:pointer;font-family:inherit;text-decoration:none;}
+  .btn.go{background:var(--blue);color:#fff;}
+
+
+  /* nav */
+  nav{position:fixed;left:0;right:0;bottom:0;height:calc(var(--tabh) + env(safe-area-inset-bottom));box-sizing:border-box;background:rgba(249,249,249,.94);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+    border-top:.5px solid var(--sep);display:flex;justify-content:space-around;align-items:flex-start;padding:6px 0 env(safe-area-inset-bottom);z-index:20;}
+  nav button{flex:1;background:none;border:none;font-family:inherit;font-size:10px;font-weight:600;color:var(--secondary);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  nav button svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+  nav button.active{color:var(--blue);}
+  .page{display:none;}
+  .page.active{display:block;}
+  .appver{text-align:center;font-size:12px;color:var(--tertiary);padding:18px 0 4px;}
+
+  /* pack */
+  .pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;color:#fff;flex:none;}
+  .packsub{display:flex;gap:16px;font-size:13px;font-weight:600;color:var(--secondary);margin-top:9px;}
+  .prow{display:flex;align-items:center;gap:10px;padding:12px 16px;position:relative;font-size:16px;}
+  .prow + .prow::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--sep);}
+  .prow .pt{flex:1;}
+  .pcheck{display:flex;align-items:center;gap:12px;padding:12px 16px;position:relative;user-select:none;-webkit-user-select:none;}
+  .pcheck + .pcheck::before{content:"";position:absolute;left:56px;right:0;top:0;height:.5px;background:var(--sep);}
+  .pcheck .pring{flex:none;position:relative;cursor:pointer;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--tertiary);display:flex;align-items:center;justify-content:center;color:transparent;font-weight:700;font-size:15px;transition:transform .35s cubic-bezier(.22,1,.36,1);}
+  .pcheck .pring::after{content:"";position:absolute;inset:-10px;border-radius:50%;}  /* 48px invisible hit area */
+  .pcheck.on .pring{background:var(--green);border-color:var(--green);color:#fff;}
+  .pcheck .pring.pressed{transform:scale(.86);}
+  .pcheck .pn{flex:1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:16px;}
+  .pcheck.on .pt{color:var(--secondary);text-decoration:line-through;text-decoration-color:var(--tertiary);}
+  /* spring (damping 1.0 — no overshoot) */
+  @keyframes springIn{from{opacity:0;transform:translateY(10px) scale(.98);}to{opacity:1;transform:none;}}
+  #page-pack.active{animation:springIn .38s cubic-bezier(.22,1,.36,1);}
+  @keyframes springUp{from{transform:translateY(40%);opacity:.6;}to{transform:none;opacity:1;}}
+
+  /* sync card (Trips list, dormant in v1) + toast */
+  .card.sync{margin-top:16px;}
+  .syncform{padding:0 16px 14px;display:flex;flex-direction:column;gap:10px;}
+  .syncform label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--secondary);}
+  .syncform input{font-family:inherit;font-size:15px;font-weight:400;padding:9px 12px;border:1px solid var(--sep);border-radius:10px;outline:none;background:var(--cell);color:var(--label);width:100%;}
+  .syncform input:focus{border-color:var(--blue);}
+  .syncbtns{display:flex;gap:8px;flex-wrap:wrap;}
+  .syncstatus{font-size:13px;color:var(--secondary);min-height:18px;}
+  .syncstatus.err{color:var(--red);}
+  .toast{position:fixed;left:50%;bottom:calc(var(--tabh) + env(safe-area-inset-bottom) + 14px);transform:translateX(-50%) translateY(12px);opacity:0;background:rgba(28,28,30,.92);color:#fff;font-size:13px;font-weight:600;padding:9px 14px;border-radius:999px;z-index:30;pointer-events:none;white-space:nowrap;transition:opacity .25s ease-out,transform .35s cubic-bezier(.22,1,.36,1);}
+  .toast.show{opacity:1;transform:translateX(-50%);}
+  @media (prefers-reduced-motion:reduce){.toast{transition:none;}}
+  .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40;display:flex;align-items:flex-end;justify-content:center;}
+  .modal{background:var(--cell);border-radius:16px 16px 0 0;width:100%;max-width:640px;padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:80vh;display:flex;flex-direction:column;gap:12px;animation:springUp .42s cubic-bezier(.22,1,.36,1);}
+  .modal h2{font-size:17px;font-weight:700;}
+  .modal textarea{height:45vh;font-family:ui-monospace,Menlo,monospace;font-size:12px;border:1px solid var(--sep);border-radius:10px;padding:10px;background:var(--bg);color:var(--label);resize:none;-webkit-user-select:text;user-select:text;overflow:auto;}
+  .modal .mbtns{display:flex;gap:8px;}
+  .modal .mbtns .btn{flex:1;text-align:center;}
+  .hint .sep{color:var(--tertiary);margin:0 2px;}
+  .modal textarea.imp{height:26vh;font-family:inherit;font-size:15px;}
+  .imp-rows{max-height:34vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .imp-row{padding:10px 0;border-top:1px solid #E5E5EA;}
+  .imp-row:first-child{border-top:0;}
+  .imp-row .l{display:flex;justify-content:space-between;gap:10px;font-size:15px;font-weight:600;}
+  .imp-row .l span{color:var(--secondary);font-weight:500;}
+  .imp-row .chips2{margin-top:6px;gap:6px;}
+  .imp-row .chip2{font-size:12px;padding:5px 9px;}
+  .imp-note{font-size:12px;color:var(--secondary);background:var(--bg);border-radius:10px;padding:10px 12px;line-height:1.4;}
+  .imp-note code{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all;}
+  .imp-res{font-size:14px;font-weight:600;}
+
+  /* trip — motion is transform/opacity only, ease-out (spring, damping 1.0, no overshoot) */
+  #page-trip.active{animation:springIn .38s cubic-bezier(.22,1,.36,1);}
+  .tripmap{position:relative;background:var(--cell);border-radius:14px;padding:0 0 4px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05);overflow:hidden;}
+  .tripmap svg{width:100%;height:auto;aspect-ratio:380/300;display:block;touch-action:pan-y;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
+  .tripmap svg.zoomed{touch-action:none;}   /* one finger pans only while zoomed; at 1× the page scrolls as usual */
+  .zoomlayer{transform-origin:0 0;}
+  .mapreset{position:absolute;top:12px;right:12px;z-index:2;font-family:inherit;font-size:12px;font-weight:600;line-height:1;padding:7px 11px;border-radius:999px;border:0;background:rgba(255,255,255,.94);color:var(--blue);box-shadow:0 1px 3px rgba(0,0,0,.18);opacity:0;transform:scale(.9);pointer-events:none;transition:opacity .25s ease-out,transform .35s cubic-bezier(.22,1,.36,1);}
+  .mapreset.show{opacity:1;transform:none;pointer-events:auto;}
+  @media (prefers-reduced-motion:reduce){.mapreset{transition:none;}}
+  .mp-state{fill:#F5F3EE;stroke:#DCD8CF;stroke-width:.7;stroke-linejoin:round;}
+  .mp-abbr{font-size:8px;fill:#B5B1A8;font-family:inherit;font-weight:600;}
+  .rt-case{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;}
+  .rt-base{fill:none;stroke:#BFC6D1;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;}
+  .rt-done{fill:none;stroke:#0A7AFF;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;}
+  .nd{fill:#fff;stroke:#0A7AFF;stroke-width:2;}
+  .nd.start{fill:#0A7AFF;}
+  .nd.home{stroke:#AF52DE;}
+  .nd.opt{fill:#F5F3EE;stroke-width:1.4;stroke-dasharray:2 1.6;}
+  .nd.done{fill:#0A7AFF;}
+  .nd.home.done{fill:#AF52DE;}
+  .nl{font-size:9.5px;font-weight:500;fill:#1C1C1E;font-family:inherit;paint-order:stroke;stroke:#F5F3EE;stroke-width:3;stroke-linejoin:round;}
+  .nl.b{font-weight:700;}
+  .posg{transition:transform .6s cubic-bezier(.22,1,.36,1),opacity .3s ease-out;}   /* critically-damped spring, no overshoot */
+  .posg .halo{fill:#0A7AFF;opacity:.18;}
+  .posg .dot{fill:#0A7AFF;stroke:#fff;stroke-width:2;}
+  .tripstat{text-align:center;font-size:14px;font-weight:600;color:var(--secondary);padding:8px 8px 4px;}
+  .tripstat strong{color:var(--label);font-weight:800;}
+  /* level-of-detail layers: fade in with zoom, counter-scaled, opacity-only */
+  .lod-towns,.lod-shields,.lod-chg{pointer-events:none;}
+  .town{transition:opacity .15s ease-out;}
+  .td{fill:#8E8E93;}
+  .tn{font-size:8px;font-weight:500;fill:#6E6E73;font-family:inherit;paint-order:stroke;stroke:#F5F3EE;stroke-width:2.5;stroke-linejoin:round;}
+  .shield .sb{fill:#1B4FA0;stroke:#fff;stroke-width:.8;}
+  .shield .sbar{fill:#C8102E;}
+  .shield .sl{font-size:6.5px;font-weight:700;fill:#fff;font-family:inherit;letter-spacing:.2px;}
+  .shield.state .sb{fill:#fff;stroke:#6E6E73;}
+  .shield.state .sl{fill:#1C1C1E;}
+  .cn{font-size:8px;font-weight:600;fill:#E82127;font-family:inherit;paint-order:stroke;stroke:#F5F3EE;stroke-width:2.5;stroke-linejoin:round;}
+  .chg{fill:#E82127;stroke:#fff;stroke-width:1.5;}   /* Tesla red: logged session */
+  .chg.plan{fill:#fff;stroke:#E82127;}               /* planned charger: hollow */
+  .cdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#E82127;border:1.5px solid #fff;box-shadow:0 0 0 .5px rgba(0,0,0,.12);vertical-align:-1px;margin-right:5px;}
+  .cdot.plan{background:#fff;border-color:#E82127;box-shadow:none;}
+  .chgrow{margin:0 8px;border-top:.5px solid var(--sep);}
+  .chgrow .chgh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--secondary);padding:8px 4px;cursor:pointer;min-height:36px;}
+  .chgrow .chgh b{color:var(--label);font-weight:800;}
+  .chgrow .chgh .chev{transition:transform .35s cubic-bezier(.22,1,.36,1);transform:rotate(-90deg);}
+  .chgrow.open .chgh .chev{transform:rotate(0);}
+  .chgrow .chgl{display:none;padding-bottom:4px;}
+  .chgrow.open .chgl{display:block;animation:springIn .35s cubic-bezier(.22,1,.36,1) both;}
+  .chgrow .chgl a{display:block;font-size:13px;line-height:1.35;color:var(--label);text-decoration:none;padding:8px 4px;border-top:.5px solid var(--sep);}
+  .chgrow .chgl a small{color:var(--secondary);font-size:13px;}
+  .triptoggle{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--cell);border-radius:14px;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+  .triptoggle .tl{font-size:16px;font-weight:600;}
+  .triptoggle .ts{font-size:12px;color:var(--secondary);margin-top:2px;}
+  .sw{position:relative;width:51px;height:31px;border-radius:16px;background:var(--fill);border:none;cursor:pointer;flex:none;padding:0;}
+  .sw .knob{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .35s cubic-bezier(.22,1,.36,1);}
+  .sw.on{background:var(--green);}
+  .sw.on .knob{transform:translateX(20px);}
+  .tripstop .sh{display:flex;justify-content:space-between;align-items:baseline;padding:13px 16px 0;}
+  .tripstop .day{font-size:12px;font-weight:700;color:var(--secondary);text-transform:uppercase;letter-spacing:.04em;}
+  .tripstop .mi{font-size:13px;font-weight:600;color:var(--secondary);}
+  .tripstop .nm{font-size:17px;font-weight:700;padding:2px 16px 0;}
+  .tripstop .nm .note{font-size:13px;font-weight:400;color:var(--secondary);}
+  .tripstop .alt{display:inline-block;font-size:12px;font-weight:600;background:var(--fill);color:var(--secondary);border-radius:999px;padding:4px 10px;margin:4px 16px 2px;}
+  .tripstop.done .nm{color:var(--secondary);}
+  .tripstop .sc{font-size:13px;color:var(--secondary);padding:3px 16px 0;}
+  .tripstop .bkrow{display:flex;align-items:center;gap:8px;padding:6px 16px 0;font-size:12px;font-weight:600;color:var(--secondary);text-transform:uppercase;letter-spacing:.04em;}
+  .tripstop .bkrow .alt{margin:0;text-transform:none;letter-spacing:0;text-decoration:none;}
+  .tripstop .hot{font-size:14px;font-weight:600;padding:3px 16px 0;}
+  .tripstop .btns.three{display:flex;flex-wrap:wrap;gap:8px;}
+  .tripstop .btns.three .btn{flex:1 1 calc(50% - 4px);text-align:center;font-size:14px;padding:10px 8px;}
+  .tripstop .lnk{font-size:13px;font-weight:600;color:var(--blue);text-decoration:none;margin-left:14px;}
+  /* Rolling / Arrived timestamps on a stop card */
+  .rollrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:0 16px 12px;}
+  .rollrow .btn{font-size:14px;padding:8px 12px;}
+  .chipbtn{font-family:inherit;font-size:13px;font-weight:600;background:var(--fill);color:var(--label);border:0;border-radius:999px;padding:7px 12px;cursor:pointer;}
+  .stampEd{display:inline-flex;gap:6px;align-items:center;}
+  .stampEd input{font-family:inherit;font-size:15px;padding:6px 9px;border:1px solid var(--sep);border-radius:10px;background:var(--cell);color:var(--label);}
+  .stampEd .btn{font-size:13px;padding:7px 10px;}
+  /* Stats section — design/sf-move-stats-dashboard-mockup.html, scoped under .stx (mockup palette kept literal) */
+  .stx{--sx-ink:#111214;--sx-mute:#6B7280;--sx-faint:#9CA3AF;--sx-line:#E9EBEF;--sx-soft:#F3F4F7;--sx-acc:#2F6BFF;--sx-red:#E82127;color:var(--sx-ink);}
+  .stx .top{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin:6px 0 16px;}
+  .stx h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:0 0 2px;}
+  .stx .sub{font-size:14px;color:var(--sx-mute);margin:0;}
+  .stx .pills{display:flex;gap:8px;flex-wrap:wrap;}
+  .stx .pill{position:relative;display:inline-flex;align-items:center;gap:8px;background:#fff;border:0;border-radius:999px;padding:12px 18px;font-family:inherit;font-size:14px;font-weight:500;color:var(--sx-ink);box-shadow:0 1px 2px rgba(17,18,20,.04);cursor:pointer;flex:none;}
+  .stx .pill.on{background:linear-gradient(135deg,#2F6BFF,#6C9BFF);color:#fff;}
+  .stx .pill i{font-style:normal;color:var(--sx-faint);}
+  .stx .pill.on i{color:rgba(255,255,255,.8);}
+  .stx .pill select{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;}   /* native picker sits over the pill */
+  .stx .pill:active{transform:scale(.97);}
+  .stx .kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+  .stx .kpi{background:#fff;border-radius:24px;padding:18px 18px;position:relative;min-height:128px;min-width:0;box-shadow:0 1px 2px rgba(0,0,0,.05);text-align:left;}   /* text-align + span reset: the Spend tab's .kpi rules share the class name */
+  .stx .kpi span{font-size:inherit;color:inherit;text-transform:none;letter-spacing:0;}
+  .stx .kpi .t{font-size:13px;color:var(--sx-mute);margin-bottom:12px;}
+  .stx .kpi .n{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-wrap:wrap;row-gap:8px;}
+  .stx .kpi .d{font-size:11px;font-weight:600;padding:4px 8px;border-radius:999px;background:#E8F0FF;color:var(--sx-acc);white-space:nowrap;text-transform:none;letter-spacing:0;}
+  .stx .kpi .d.bad{background:#FEECEC;color:#DC2626;}.stx .kpi .d.good{background:#E7F8EE;color:#15803D;}
+  .stx .kpi .s{font-size:13px;color:var(--sx-mute);margin-top:14px;}.stx .kpi .s b{color:var(--sx-ink);font-weight:600;}
+  .stx .kpi.acc{background:linear-gradient(160deg,#2F6BFF 0%,#5B8BFF 60%,#8EB0FF 100%);color:#fff;}
+  .stx .kpi.acc .t,.stx .kpi.acc .s{color:rgba(255,255,255,.85);}.stx .kpi.acc .s b{color:#fff;}.stx .kpi.acc .d{background:rgba(255,255,255,.22);color:#fff;}
+  .stx .card{background:#fff;border-radius:24px;padding:20px;margin-bottom:16px;overflow:hidden;}
+  .stx .card h2{font-size:20px;font-weight:700;margin:0;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .stx .card h2 .pill{padding:8px 14px;font-size:13px;background:var(--sx-soft);box-shadow:none;}
+  .stx .hb{display:grid;grid-template-columns:104px 1fr 64px;gap:14px 10px;align-items:center;font-size:14px;margin-top:22px;}
+  .stx .hb .l{color:var(--sx-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .stx .hb .l small{display:block;font-size:11px;color:var(--sx-faint);overflow:hidden;text-overflow:ellipsis;}
+  .stx .hb .v{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}.stx .hb .v.g{color:var(--sx-faint);font-weight:500;}
+  .stx .hb .tr{height:22px;border-radius:8px;background:var(--sx-soft);position:relative;overflow:hidden;}
+  .stx .hb .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:8px;background:#DFE3E9;}
+  .stx .hb .tr i.on{background:repeating-linear-gradient(135deg,#2F6BFF 0 3px,#7FA6FF 3px 7px);}
+  .stx .hb .tr i.r{background:var(--sx-red);}
+  .stx .hb .tr i.seg{border-radius:0;}
+  .stx .hb .row{display:contents;cursor:pointer;}
+  .stx .hb .row.sel .l{color:var(--sx-ink);font-weight:600;}
+  .stx .tip{margin-top:20px;background:var(--sx-soft);border-radius:16px;padding:14px 16px;font-size:14px;}
+  .stx .tip b{display:block;margin-bottom:8px;font-weight:600;}.stx .tip div{display:flex;justify-content:space-between;color:var(--sx-mute);margin-top:4px;}.stx .tip div span:last-child{color:var(--sx-ink);font-weight:600;}
+  .stx .tip i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;background:#E2E5EA;}.stx .tip i.b{background:var(--sx-acc);}.stx .tip i.r{background:var(--sx-red);}
+  .stx .mini{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px;}
+  .stx .mini.three{grid-template-columns:repeat(3,1fr);margin-top:30px;}
+  .stx .mini div{background:var(--sx-soft);border-radius:16px;padding:14px;min-width:0;}
+  .stx .mini .t{font-size:12px;color:var(--sx-mute);margin-bottom:12px;background:none;border-radius:0;padding:0;}
+  .stx .mini .n{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-wrap:wrap;row-gap:6px;background:none;border-radius:0;padding:0;}
+  .stx .mini .d{font-size:10px;font-weight:600;padding:3px 7px;border-radius:999px;background:#FEF3C7;color:#B45309;white-space:nowrap;}.stx .mini .d.k{background:#111214;color:#fff;}
+  .stx .spd{margin-top:22px;display:grid;gap:14px;font-size:14px;}
+  .stx .spd .r{display:grid;grid-template-columns:90px 1fr 46px;align-items:center;gap:12px;}
+  .stx .spd .r span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .stx .spd .bar{height:8px;border-radius:999px;background:var(--sx-soft);overflow:hidden;}
+  .stx .spd .bar i{display:block;height:100%;background:var(--sx-acc);border-radius:999px;}
+  .stx .spd .r b{text-align:right;font-variant-numeric:tabular-nums;}
+  .stx .note{font-size:13px;color:var(--sx-mute);margin:18px 0 0;}
+  .stx .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:18px;}
+  .stx table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px;}
+  .stx th{font-weight:500;color:var(--sx-mute);text-align:left;padding:12px 10px;background:var(--sx-soft);white-space:nowrap;}
+  .stx th:first-child{border-radius:12px 0 0 12px;}.stx th:last-child{border-radius:0 12px 12px 0;text-align:right;}
+  .stx th.on{color:var(--sx-ink);font-weight:600;}
+  .stx td{padding:14px 10px;border-bottom:1px solid var(--sx-line);white-space:nowrap;}.stx td:last-child{text-align:right;font-weight:600;}
+  .stx .st{display:inline-flex;align-items:center;gap:8px;font-weight:600;}.stx .st i{width:30px;height:30px;border-radius:10px;background:#FEECEC;color:var(--sx-red);display:grid;place-items:center;font-style:normal;font-size:13px;flex:none;}
+  .stx .tag{font-size:11px;font-weight:600;padding:4px 8px;border-radius:999px;background:#E7F8EE;color:#15803D;border:0;cursor:default;}   /* the Sort tab's .tag buttons share the class name */.stx .tag.o{background:#FEF3C7;color:#B45309;}.stx .tag.r{background:#FEECEC;color:#DC2626;}
+  .stx .empty{font-size:14px;color:var(--sx-mute);margin-top:18px;}
+  .stx .kpi.flash,.stx .card.flash{animation:sxFlash .4s ease-out;}
+  @keyframes sxFlash{from{opacity:.55;transform:scale(.99);}to{opacity:1;transform:none;}}
+  @media (min-width:700px){
+    .stx .top{flex-direction:row;justify-content:space-between;align-items:flex-end;}
+    .stx .kpis{gap:16px;}.stx .kpi{padding:22px 24px;min-height:140px;}.stx .kpi .n{font-size:36px;gap:10px;}.stx .kpi .t{font-size:14px;margin-bottom:14px;}.stx .kpi .s{margin-top:18px;}
+    .stx .card{padding:24px;}
+    .stx .hb{grid-template-columns:128px 1fr 74px;gap:14px 12px;}
+    .stx .mini .t{font-size:13px;margin-bottom:14px;}.stx .mini div{padding:16px;}
+    .stx table{font-size:14px;}.stx th{padding:14px 12px;}.stx td{padding:16px 12px;}
+  }
+  /* Trip progress strip — the card directly under the map hero (dashboard style, same palette as .stx) */
+  .tprog{background:#fff;border-radius:24px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);color:#111214;overflow:visible;}
+  .tprog .tph{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .tprog h2{font-size:20px;font-weight:700;margin:0;}
+  .tprog .tpill{background:#E8F0FF;color:#2F6BFF;font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;white-space:nowrap;flex:none;}
+  .tprog .tpw{position:relative;margin-top:56px;}
+  .tprog .tptrack{position:relative;height:10px;border-radius:999px;background:#E9EBEF;}
+  .tprog .fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#2F6BFF,#6C9BFF);}
+  .tprog .tps{position:absolute;top:50%;transform:translate(-50%,-50%);border-radius:50%;background:#fff;box-sizing:border-box;}
+  .tprog .tps.up{width:10px;height:10px;border:2px solid #C7CBD1;}
+  .tprog .tps.on{width:8px;height:8px;}
+  .tprog .tpring{position:absolute;top:50%;width:22px;height:22px;border-radius:50%;background:#fff;border:4px solid #2F6BFF;box-sizing:border-box;transform:translate(-50%,-50%);box-shadow:0 1px 3px rgba(0,0,0,.15);}
+  .tprog .tpflag{position:absolute;bottom:20px;transform:translateX(-50%);background:#111214;color:#fff;border:0;border-radius:999px;padding:7px 12px;font-family:inherit;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;cursor:pointer;}
+  .tprog .tpflag:after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-top-color:#111214;border-bottom:0;}
+  .tprog .tpflag:active{transform:translateX(-50%) scale(.96);}
+  .tprog .tpnames{position:relative;height:38px;margin-top:12px;font-size:12px;}
+  .tprog .tpn{position:absolute;top:0;transform:translateX(-50%);text-align:center;white-space:nowrap;font-weight:600;color:#111214;}
+  .tprog .tpn small{display:block;font-size:11px;font-weight:500;color:#6B7280;margin-top:1px;}
+  .tprog .tpn.first{transform:none;text-align:left;}.tprog .tpn.last{transform:translateX(-100%);text-align:right;}
+  .tprog .tpn.next,.tprog .tpn.next small{color:#2F6BFF;}
+  .tprog .tptiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;}
+  .tprog .tptiles>div{background:#F3F4F7;border-radius:16px;padding:14px;min-width:0;}
+  .tprog .tptiles>div:last-child{grid-column:1/-1;}
+  .tprog .tt{font-size:12px;color:#6B7280;margin-bottom:10px;}
+  .tprog .tn{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:baseline;gap:8px;white-space:nowrap;}
+  .tprog .tn small{font-size:12px;font-weight:500;color:#6B7280;}
+  .tprog .tn .bolt{color:#E82127;font-size:17px;align-self:center;}
+  @media (max-width:599px){.tprog .tpn.opt{display:none;}}
+  @media (min-width:600px){.tprog .tptiles{grid-template-columns:repeat(3,1fr);}.tprog .tptiles>div:last-child{grid-column:auto;}}
+  /* Filter sheet (Stats) */
+  .fsheet .frow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--sep);}
+  .fsheet .frow:last-of-type{border-bottom:0;}
+  .fsheet .frow .fl{font-size:16px;font-weight:600;}
+  .fsheet .frow .fs{font-size:13px;color:var(--secondary);margin-top:2px;}
+  .daterow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px 4px;}
+  .daterow label{font-size:16px;font-weight:600;}
+  .daterow input{font-family:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--sep);border-radius:10px;background:var(--cell);color:var(--label);}
+  .bk{fill:#F5F3EE;stroke:#9AA0A6;stroke-width:1.2;}
+  .bl{font-size:8px;font-weight:500;fill:#8E8E93;font-family:inherit;paint-order:stroke;stroke:#F5F3EE;stroke-width:2.5;stroke-linejoin:round;}
+
+  /* spend — layout per design/sf-move-spend-mockup.html; motion is transform/opacity only, critically damped */
+  #page-spend.active{animation:springIn .38s cubic-bezier(.22,1,.36,1);}
+  .spc{padding:16px;}
+  .total{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .total b{font-size:40px;font-weight:800;letter-spacing:-.03em;line-height:1;}
+  .total span{font-size:15px;color:var(--secondary);}
+  .bar{display:flex;position:relative;height:10px;border-radius:999px;overflow:hidden;margin:12px 0 8px;background:#E5E5EA;}
+  .bar i{display:block;height:100%;}
+  .bar i.over{position:absolute;top:0;background:var(--orange);}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px;color:var(--secondary);}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px;}
+  .legend b{color:var(--label);font-weight:600;float:right;}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+  .kpi{background:var(--bg);border-radius:12px;padding:8px 12px;text-align:center;}
+  .kpi b{display:block;font-size:17px;font-weight:700;}
+  .kpi span{font-size:11px;color:#8E8E93;text-transform:uppercase;letter-spacing:.05em;}
+  .hint{font-size:12px;color:#8E8E93;margin-top:8px;}
+  .hint a{color:var(--blue);text-decoration:none;font-weight:600;}
+  .hint .over{color:var(--orange);font-weight:600;}
+  .hint input{width:96px;font-family:inherit;font-size:15px;padding:6px 9px;border:0;background:var(--bg);border-radius:10px;margin:0 6px;}
+  .hint .btn{padding:6px 10px;font-size:13px;}
+  .add{display:flex;gap:8px;align-items:center;min-width:0;}
+  .add input{min-width:0;border:0;background:var(--bg);border-radius:12px;color:var(--label);font-family:inherit;outline:none;}
+  .add .amt{flex:0 0 38%;width:38%;font-size:28px;font-weight:700;padding:8px 12px;}
+  .add .note{flex:1 1 0;width:0;font-size:15px;padding:14px 12px;}
+  .kwh{margin-top:8px;}
+  .kwh input{width:100%;border:0;background:var(--bg);border-radius:12px;color:var(--label);font-family:inherit;font-size:15px;padding:12px;outline:none;}
+  .kwh[hidden]{display:none;}
+  .chips2{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .chip2{font-size:13px;font-weight:600;padding:7px 12px;border-radius:999px;background:var(--bg);color:var(--secondary);border:0;font-family:inherit;cursor:pointer;}
+  .chip2.on{background:var(--blue);color:#fff;}
+  .addbtn{margin-top:12px;width:100%;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:600;background:var(--blue);color:#fff;font-family:inherit;cursor:pointer;}
+  .dayh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .dayh h2{font-size:17px;font-weight:700;margin:0;}
+  .dayh h2 small{font-weight:500;color:var(--secondary);font-size:13px;margin-left:6px;}
+  .dayh b{font-size:15px;}
+  .sprow{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #E5E5EA;position:relative;touch-action:pan-y;user-select:none;-webkit-user-select:none;transition:transform .35s cubic-bezier(.22,1,.36,1);}
+  .sprow:first-of-type{border-top:0;}
+  .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex:0 0 34px;}
+  .sprow .t{flex:1;min-width:0;}
+  .sprow .t div{font-size:15px;font-weight:600;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}   /* wrap to two lines so tags never clip */
+  .sprow .t span{font-size:12px;color:#8E8E93;}
+  .sprow .a{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;flex:none;}
+  .sprow.plan{opacity:.62;}
+  .sprow.plan .a{color:var(--secondary);font-weight:600;}
+  .sprow.plan .ic{outline:1.5px dashed #8E8E93;outline-offset:-1.5px;background:transparent!important;}
+  .sprow.new{animation:springIn .38s cubic-bezier(.22,1,.36,1);}
+  .addsec{border-top:1px solid #E5E5EA;margin-top:4px;padding-top:12px;}
+  .addrow2{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:4px 0;font-family:inherit;font-size:15px;font-weight:600;color:var(--blue);cursor:pointer;text-align:left;}
+  .addrow2 .plus{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:18px;line-height:1;flex:none;}
+  .addform.new,.addrow2.new{animation:springIn .38s cubic-bezier(.22,1,.36,1);}   /* expand/collapse: transform + opacity only */
+  .now{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--blue);color:#fff;border-radius:6px;padding:2px 6px;margin-left:8px;vertical-align:2px;}
+  .sptag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:var(--bg);color:#8E8E93;margin-left:6px;vertical-align:1px;}
+  .ch{background:#E5F0FF;}.ho{background:#F3E8FF;}.fo{background:#FFF1E0;}.gr{background:#E0F5F7;}.ka{background:#E6F8EA;}.mi{background:#EEF0F3;}
+  .est{font-size:13px;color:var(--secondary);margin:0;line-height:1.45;}
+  .sp-conf{display:flex;align-items:center;gap:8px;width:100%;font-size:14px;}
+  .sp-conf span{flex:1;}
+  .sp-conf .btn{padding:8px 12px;font-size:14px;}
+  .sp-conf .btn.del{background:var(--red);color:#fff;}
+  .sp-edit{display:flex;gap:6px;align-items:center;}
+  .sp-edit input{width:88px;font-family:inherit;font-size:16px;padding:7px 9px;border:0;background:var(--bg);border-radius:10px;}
+  .sp-edit .btn{padding:8px 12px;font-size:14px;}
+  /* ---------- responsive: iPad and wider (≥700px). Everything above this block is the phone layout and is unchanged ---------- */
+  @media (min-width:700px){
+    .wrap{max-width:1040px;padding:8px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));}   /* 16px sides: an 820px iPad then fits two 386px columns */
+    /* every card on every tab spans the full 1040px column — no grids, no masonry */
+    /* text lines never run past ~70ch, whatever the column width */
+    .sec-note,.check>span,.check .cd,.trcard .tst,.tripstop .hot,.tripstop .sc,.tripstop .nm,.sprow .t,.hint,.imp-note,.est,.spc p{max-width:70ch;}
+    /* Trip hero spans the full column; aspect is kept and height capped at 70vh — the SVG "slice"s (crops sky + Mexico), never letterboxes or distorts */
+    .tripmap svg{max-height:70vh;}
+    /* same tab bar, its four targets centred inside 600px; height and safe-area padding unchanged */
+    nav{justify-content:center;}
+    nav button{flex:0 1 120px;}
+  }
+
+  /* ---------- Trips list (launch screen) — dashboard cards; spacing from the scale tokens only ---------- */
+  .trips{display:grid;gap:var(--s3);}
+  .trcard{display:block;width:100%;text-align:left;font-family:inherit;color:inherit;background:var(--cell);border:0;border-radius:var(--r);padding:var(--s4);box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer;transition:transform .35s cubic-bezier(.22,1,.36,1);}
+  .trcard:active{transform:scale(.985);}
+  .trcard .trh{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s3);}
+  .trcard .tn{font-size:20px;font-weight:700;letter-spacing:-.02em;min-width:0;}
+  .trcard .tdt{font-size:14px;color:var(--secondary);margin-top:var(--s1);}
+  .trcard .tst{font-size:14px;font-weight:600;margin-top:var(--s3);font-variant-numeric:tabular-nums;}
+  .schip{flex:none;font-size:12px;font-weight:600;padding:var(--s1) var(--s3);border-radius:999px;background:var(--fill);color:var(--secondary);}
+  .schip.live{background:#E7F8EE;color:#15803D;}
+  .schip.planning{background:#E8F0FF;color:#2F6BFF;}
+  .tripsempty{border:1.5px dashed var(--sep);border-radius:var(--r);padding:var(--s6) var(--s4);text-align:center;color:var(--secondary);font-size:15px;}
+  .newtrip{display:block;width:100%;margin-top:var(--s3);font-family:inherit;font-size:16px;font-weight:600;padding:var(--s3) var(--s4);border:0;border-radius:var(--r2);background:var(--blue);color:#fff;cursor:pointer;}
+  /* new-trip Basics sheet — extends .modal */
+  .sheet .frm{display:flex;flex-direction:column;gap:var(--s3);}
+  .sheet label{display:flex;flex-direction:column;gap:var(--s1);font-size:13px;font-weight:600;color:var(--secondary);}
+  .sheet input{font-family:inherit;font-size:16px;font-weight:400;padding:var(--s3);border:1px solid var(--sep);border-radius:var(--r2);background:var(--cell);color:var(--label);width:100%;}
+  .sheet input:focus{border-color:var(--blue);outline:none;}
+  .sheet .veh{font-size:13px;color:var(--secondary);}
+  .sheet .err{font-size:13px;font-weight:600;color:var(--red);min-height:var(--s4);}
+  /* tab bar: back chevron to Trips; with no active trip there is no tab bar at all */
+  nav button.back svg{stroke-width:2;}
+  body.listview nav{display:none;}
+  body.listview #scroll{bottom:0;}
+  body.listview .toast{bottom:calc(env(safe-area-inset-bottom) + var(--s4));}   /* no tab bar on the Trips list: the toast sits on the bottom edge */
+</style>
+</head>
+<body class="listview">
+<div id="scroll">
+<div class="wrap">
+
+  <!-- ================= TRIPS (launch) ================= -->
+  <div class="page active" id="page-trips">
+    <div class="sign">
+      <div class="route">Road trips</div>
+      <h1>Mile Marker</h1>
+      <div class="sub" id="tripsSub">Every trip, its route, its pack list and what it cost.</div>
+    </div>
+    <div class="trips" id="tripsList"></div>
+    <button class="newtrip" id="newTripBtn" type="button">+ New trip</button>
+    <div class="card sync" id="syncCard">
+      <div class="sec-head" style="cursor:default"><span class="t">Sync</span><span class="m" id="syncDeviceBadge"></span></div>
+      <div class="sec-note">Secret GitHub Gist as the store. The ID and token live only on this device (localStorage, never in the app or the repo). Dormant in v1 — nothing is pushed until a Gist is connected here.</div>
+      <div class="sec-body syncform">
+        <label>Gist ID<input type="text" id="syncGist" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="from gist.github.com/…/<id>"></label>
+        <label>GitHub token<input type="password" id="syncToken" autocomplete="off" placeholder="classic PAT, gist scope"></label>
+        <label>This device<input type="text" id="syncDevice" autocapitalize="words" autocomplete="off" placeholder="iPhone"></label>
+        <div class="syncbtns"><button class="btn go" id="syncConnect" type="button">Connect</button><button class="btn" id="syncDisconnect" type="button">Disconnect</button></div>
+        <div class="syncstatus" id="syncStatus">Not connected</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TRIP ================= -->
+  <div class="page" id="page-trip">
+    <div class="sign">
+      <div class="route" id="tripRoute">Route</div>
+      <h1 id="tripName">Trip</h1>
+      <div class="sub" id="tripSub"></div>
+    </div>
+    <div class="tripmap">
+      <button class="mapreset" id="mapReset" type="button" aria-hidden="true" tabindex="-1">Reset</button>
+      <svg id="tripSvg" viewBox="0 0 380 300" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Route map">
+        <g id="zoomLayer" class="zoomlayer">
+        <rect x="0" y="0" width="380" height="300" fill="#BFDDF3"/>
+        <!-- outlines lifted verbatim from sf-move-map-options.html (option B): Canada/Alaska + Mexico + 31 states, projected lon -125.5→-84.5 / lat 25→49.5 onto 380×300.
+             Canada is first (it paints behind the states) and carries the same land fill as Mexico; it was skipped while the crop was 0 62 380 168 and nothing of it showed. -->
+        <g id="mapStates" class="mp-state">
+          <path d="M573.1 36.1 579.8 37.8 588.4 37.4 583.9 42.4 580.4 43.2 568.7 38.0 566.4 33.9 569.9 30.2 573.1 36.1ZM590.3 4.8 585.8 5.1 573.8 1.2 565.2 -4.6 568.4 -5.6 580.6 -2.5 590.1 2.6 590.3 4.8ZM18.4 12.1 13.8 13.8 -1.4 8.3 -4.2 3.9 -12.5 -0.4 -14.2 -3.9 -23.7 -6.1 -27.3 -12.7 -26.5 -15.6 -2.4 -9.7 5.4 0.3 14.6 5.4 18.4 12.1ZM642.9 -14.5 636.8 -3.8 642.8 -8.0 649.0 -5.3 645.8 -1.1 654.0 2.3 658.3 -0.7 667.5 3.1 664.7 12.0 671.2 9.9 675.2 24.1 671.3 34.8 667.1 35.3 661.0 33.0 663.0 23.0 660.5 21.4 649.7 32.0 644.2 31.6 650.7 25.8 641.8 22.9 613.9 23.2 612.5 19.6 618.2 15.3 614.2 12.0 622.0 4.6 631.6 -14.9 637.3 -21.9 645.3 -26.1 649.6 -25.6 642.9 -14.5ZM-66.8 -55.6 -57.9 -56.6 -60.7 -42.7 -52.6 -32.8 -56.3 -32.8 -70.0 -47.9 -71.7 -53.3 -71.2 -57.2 -66.8 -55.6ZM428.5 -155.0 424.9 -148.6 420.8 -149.6 418.4 -153.3 422.4 -157.8 426.2 -157.5 428.5 -155.0ZM404.1 -161.8 393.3 -155.0 386.7 -155.3 384.7 -158.6 391.6 -164.3 404.3 -164.1 404.1 -161.8ZM373.9 -197.8 375.6 -192.5 380.3 -194.3 406.5 -183.1 407.3 -177.3 414.1 -178.3 420.7 -174.2 412.5 -170.3 398.1 -173.3 392.9 -178.8 383.7 -172.3 370.5 -165.9 367.3 -173.1 354.8 -171.9 362.8 -178.0 367.2 -198.8 373.9 -197.8ZM460.0 -216.1 449.6 -215.5 447.3 -221.5 451.3 -228.3 459.8 -230.0 467.0 -226.7 466.0 -219.7 460.0 -216.1ZM276.7 -240.1 270.9 -235.8 258.4 -239.5 250.9 -238.2 238.2 -243.7 246.4 -247.5 252.9 -252.8 268.2 -247.1 276.7 -240.1ZM324.0 -244.9 323.9 -232.3 336.3 -241.9 347.4 -234.1 344.6 -225.0 353.6 -216.7 363.3 -225.6 370.0 -236.1 370.5 -249.6 397.4 -246.8 409.8 -240.8 410.4 -234.7 403.5 -228.2 410.0 -221.6 408.9 -215.6 390.7 -207.1 377.8 -205.2 368.2 -208.9 365.5 -202.7 356.5 -192.4 353.8 -187.0 343.1 -178.8 329.8 -178.0 322.5 -172.8 321.9 -164.8 311.1 -163.3 299.8 -153.4 289.7 -139.6 286.1 -129.9 285.6 -115.7 299.2 -113.7 307.7 -92.9 320.7 -95.3 337.9 -90.0 347.2 -85.4 353.8 -79.6 365.4 -76.2 375.3 -71.1 400.6 -69.2 399.1 -58.6 402.0 -46.2 408.7 -32.5 422.5 -20.9 429.7 -24.9 434.7 -37.5 429.8 -56.8 423.3 -63.3 438.1 -69.0 448.6 -77.6 453.8 -86.1 453.0 -94.3 446.7 -104.7 435.5 -113.9 446.4 -126.8 442.4 -137.9 439.3 -157.0 445.7 -159.8 471.1 -155.3 478.8 -158.5 498.8 -147.2 501.7 -142.5 518.2 -141.6 517.9 -131.3 521.0 -115.8 529.5 -113.9 536.2 -106.7 549.6 -113.5 558.5 -127.0 564.6 -132.7 594.1 -91.4 590.4 -83.7 602.7 -76.8 611.1 -69.8 625.8 -66.7 631.8 -62.8 635.5 -52.4 642.7 -50.8 646.4 -46.2 647.1 -32.4 633.7 -23.5 618.4 -19.2 606.8 -9.1 591.1 -7.1 571.3 -9.7 547.8 -8.9 540.0 -0.1 528.2 5.3 504.2 32.8 512.0 30.8 526.9 14.7 546.3 4.5 560.2 3.3 568.4 9.3 559.7 17.5 565.6 39.9 577.7 46.1 593.0 44.3 602.3 30.5 602.9 39.4 608.9 43.8 597.4 51.9 576.9 59.1 567.7 64.1 557.4 72.9 550.3 72.0 550.0 61.7 566.1 51.5 540.9 53.4 534.9 46.5 534.9 29.8 530.8 26.3 524.5 28.3 521.5 25.1 514.4 34.4 508.3 49.5 501.4 52.0 500.4 55.0 469.3 55.1 454.1 67.1 451.2 71.9 433.6 71.9 429.4 73.9 431.5 81.3 396.8 95.8 393.6 93.9 392.8 90.9 401.9 72.6 398.1 50.8 388.4 45.1 389.6 42.9 385.6 41.4 383.3 36.6 379.0 37.5 379.6 36.3 377.4 35.1 376.5 31.8 344.1 14.7 335.8 18.1 321.3 15.1 313.8 16.7 304.8 12.9 288.9 10.2 286.0 8.1 284.4 1.4 281.2 1.4 281.2 6.1 23.4 6.1 -1.2 -11.2 -17.9 -16.3 -23.1 -27.1 -21.8 -34.6 -33.6 -39.9 -35.3 -49.7 -46.5 -58.6 -46.7 -64.9 -41.5 -70.8 -41.8 -78.6 -57.5 -86.4 -72.8 -109.1 -87.5 -119.6 -92.5 -126.0 -101.8 -122.0 -110.8 -115.2 -125.5 -128.6 -134.5 -132.0 -143.6 -132.3 -143.5 -247.5 -126.2 -244.5 -111.6 -238.7 -102.0 -237.5 -93.8 -242.6 -82.6 -246.5 -68.9 -245.0 -55.0 -250.3 -39.8 -253.4 -33.4 -248.3 -26.5 -251.2 -24.5 -256.9 -18.0 -255.6 -2.4 -244.7 10.0 -253.0 11.2 -243.7 22.6 -245.7 26.1 -249.3 37.3 -248.5 51.5 -243.4 73.2 -238.9 86.0 -236.8 95.0 -237.6 107.5 -231.4 94.5 -225.3 111.2 -222.7 136.3 -224.2 144.2 -226.3 154.0 -219.0 164.1 -225.2 154.7 -230.3 160.6 -234.5 179.3 -236.3 186.8 -233.4 196.1 -226.8 206.5 -227.7 222.9 -222.2 237.3 -224.2 250.8 -223.9 249.7 -231.5 257.9 -233.6 272.3 -229.5 272.2 -217.9 278.1 -227.6 285.6 -227.3 289.8 -239.6 279.9 -247.2 269.0 -252.1 269.8 -265.7 280.7 -274.5 293.0 -272.6 302.3 -267.2 314.9 -253.4 306.7 -247.3 324.0 -244.9ZM105.0 -289.2 100.4 -283.5 121.0 -287.2 133.9 -281.0 144.4 -287.3 152.9 -283.3 160.4 -271.2 165.1 -276.3 158.5 -288.9 166.7 -290.6 175.9 -288.7 186.3 -283.7 195.0 -263.2 227.3 -251.3 226.2 -245.9 211.0 -244.9 216.9 -240.2 213.8 -235.7 181.1 -241.0 170.3 -240.2 152.9 -236.1 113.0 -233.1 107.9 -238.9 95.3 -242.2 87.0 -240.8 75.6 -250.5 96.1 -253.9 109.2 -253.4 121.3 -255.5 103.3 -258.4 70.4 -257.6 65.5 -262.2 87.0 -267.1 72.7 -266.9 56.5 -270.1 64.3 -279.3 70.8 -284.2 95.6 -291.6 105.0 -289.2ZM194.6 -292.9 186.5 -284.8 172.0 -293.4 175.2 -295.1 187.6 -295.6 194.6 -292.9ZM455.6 -289.0 456.5 -285.6 436.6 -286.2 426.5 -284.6 413.6 -291.8 414.0 -296.2 439.6 -295.7 455.6 -289.0ZM360.9 -289.7 368.2 -282.1 376.8 -291.9 400.2 -297.0 416.1 -284.3 414.8 -276.3 433.1 -279.8 441.9 -284.7 462.4 -278.5 475.2 -272.7 476.4 -267.3 493.6 -270.1 503.3 -262.3 525.6 -257.4 533.7 -252.5 542.5 -241.1 525.5 -235.3 547.3 -227.4 562.0 -224.7 575.3 -213.4 589.9 -212.6 587.0 -204.0 570.8 -189.8 559.4 -195.0 544.8 -206.8 532.8 -205.3 531.6 -198.2 557.8 -182.2 563.8 -170.1 560.6 -161.3 548.9 -164.6 525.7 -174.4 548.4 -156.5 549.9 -152.2 524.8 -157.1 504.9 -164.2 493.7 -170.2 496.9 -173.6 469.6 -185.9 469.7 -182.3 442.9 -180.4 435.1 -184.6 441.2 -193.6 477.7 -195.4 474.6 -199.7 477.8 -205.8 489.8 -217.8 487.3 -223.2 483.7 -227.4 469.5 -233.3 450.7 -237.5 456.7 -240.6 446.8 -248.2 438.7 -248.9 431.4 -253.1 426.4 -249.5 409.6 -247.9 375.9 -250.6 341.2 -256.0 333.5 -260.4 343.2 -265.9 330.1 -266.0 327.1 -278.4 334.2 -289.3 343.8 -294.3 367.7 -297.6 360.9 -289.7ZM233.0 -298.1 244.1 -295.5 260.6 -297.1 263.0 -293.5 254.4 -287.6 268.4 -282.4 266.7 -271.3 251.5 -266.6 242.6 -267.6 236.2 -272.3 213.2 -281.8 213.4 -285.7 232.3 -284.2 222.1 -292.2 233.0 -298.1ZM299.4 -285.0 289.5 -275.8 278.9 -276.3 273.1 -287.0 273.2 -293.1 278.1 -298.3 287.3 -301.7 306.6 -301.2 324.3 -298.2 310.5 -287.3 299.4 -285.0ZM46.7 -268.0 22.3 -262.1 17.4 -267.4 -4.0 -273.9 6.4 -288.0 14.5 -296.1 5.4 -303.6 36.7 -305.5 50.0 -303.0 73.6 -302.3 92.6 -293.6 58.2 -281.9 46.7 -273.3 46.7 -268.0ZM295.5 -312.0 290.5 -307.3 277.0 -308.2 265.8 -311.4 270.7 -316.9 284.1 -320.2 292.2 -315.9 295.5 -312.0ZM250.2 -333.3 257.3 -327.6 257.6 -321.3 253.4 -312.2 238.1 -311.0 228.2 -312.9 228.3 -320.1 213.2 -319.1 212.6 -328.6 222.5 -328.2 236.5 -332.4 249.5 -331.7 250.2 -333.3ZM160.2 -327.0 163.9 -322.6 172.1 -324.6 181.8 -324.1 183.5 -318.1 177.8 -312.3 146.4 -310.4 123.1 -305.1 109.0 -304.8 107.8 -308.8 127.0 -314.2 85.2 -312.8 72.2 -315.0 84.8 -326.9 93.6 -330.4 119.6 -326.2 136.1 -319.0 152.3 -318.0 139.0 -329.8 147.5 -334.2 157.1 -332.8 160.2 -327.0ZM285.6 -337.9 295.9 -334.0 314.1 -334.0 322.1 -330.0 320.0 -325.4 336.6 -319.7 362.6 -318.2 377.3 -320.8 411.2 -321.0 421.2 -316.4 423.2 -311.3 417.5 -308.0 403.6 -305.4 391.8 -306.9 346.2 -304.8 306.6 -310.3 302.2 -323.1 292.9 -328.4 273.8 -329.9 263.0 -333.7 266.5 -338.7 285.6 -337.9ZM86.2 -344.6 84.9 -335.2 77.8 -331.0 69.1 -330.4 51.9 -325.1 37.1 -323.3 24.5 -325.9 40.2 -335.1 59.3 -343.0 73.5 -342.8 86.2 -344.6ZM293.4 -343.1 271.8 -343.5 269.4 -347.0 288.0 -346.8 294.5 -344.5 293.4 -343.1ZM141.9 -345.3 124.6 -341.7 110.9 -345.7 118.4 -349.6 131.9 -350.9 145.0 -348.9 141.9 -345.3ZM146.8 -356.4 135.5 -354.0 120.1 -354.0 120.2 -355.7 129.8 -359.4 146.8 -356.4ZM275.0 -349.7 261.3 -347.2 253.7 -350.0 249.8 -354.6 249.0 -359.7 266.4 -358.4 277.5 -354.1 275.0 -349.7ZM235.8 -353.0 239.4 -347.8 224.3 -349.2 209.0 -353.2 188.4 -353.6 197.3 -357.3 186.1 -360.2 185.4 -364.9 228.7 -358.8 235.8 -353.0ZM356.6 -369.3 367.8 -365.3 355.1 -361.7 338.0 -352.5 321.6 -351.6 302.4 -353.2 292.4 -358.2 292.5 -362.6 299.9 -365.9 282.9 -365.8 272.7 -369.9 266.8 -375.4 279.7 -384.6 289.2 -385.4 285.1 -388.2 306.7 -388.9 318.5 -382.3 349.3 -377.4 356.6 -369.3ZM528.3 -411.5 573.0 -409.0 589.9 -405.7 589.5 -402.4 566.9 -397.1 544.5 -394.6 536.1 -391.9 556.3 -391.9 519.3 -381.0 503.5 -371.0 484.3 -369.0 478.4 -366.5 450.4 -365.2 463.1 -363.6 456.7 -361.5 464.4 -355.4 455.6 -351.2 441.3 -347.8 436.9 -343.0 423.9 -339.3 425.2 -336.5 441.1 -337.0 441.3 -334.0 416.5 -326.7 392.3 -330.0 365.1 -328.2 333.7 -330.3 332.6 -336.1 349.7 -338.9 345.2 -347.8 350.8 -348.6 375.6 -343.3 362.9 -351.2 347.9 -353.5 355.4 -358.3 371.9 -361.2 374.5 -365.5 361.4 -370.2 357.5 -376.5 390.1 -374.7 404.6 -379.2 383.7 -380.6 351.3 -379.8 334.9 -383.9 327.2 -388.9 316.3 -392.5 314.3 -396.7 357.1 -401.4 370.7 -405.9 382.2 -405.3 392.2 -401.9 399.3 -408.5 428.1 -411.8 456.5 -412.3 461.4 -411.0 488.1 -413.1 528.3 -411.5Z"/>
+          <path d="M262.8 289.3 257.6 308.9 256.1 331.3 257.7 338.0 260.5 343.9 262.4 353.4 268.5 362.6 274.3 375.6 284.2 378.8 288.0 383.9 316.0 375.0 321.9 370.0 326.4 349.0 342.5 342.9 356.3 342.3 358.6 344.9 358.3 350.8 353.3 358.1 351.1 365.6 352.8 367.7 349.1 382.5 346.7 379.4 343.0 379.8 339.7 387.1 338.0 385.7 337.0 388.1 319.7 387.9 319.7 394.8 315.5 394.9 325.0 405.2 324.7 409.4 312.8 409.4 308.4 419.4 309.7 421.7 308.4 428.1 293.1 410.9 285.5 407.7 280.4 408.6 268.2 414.4 228.7 395.9 218.6 386.7 203.9 382.1 200.0 376.5 190.1 369.6 183.2 355.9 186.3 354.7 185.4 351.2 187.5 348.0 187.5 343.8 180.5 327.3 158.5 297.9 150.5 292.9 148.8 289.9 150.2 282.3 140.0 273.5 137.7 265.0 132.7 264.0 123.0 251.6 122.6 247.8 114.3 229.1 114.5 224.4 107.8 219.6 104.7 220.1 99.4 216.7 97.9 221.7 100.3 236.8 113.3 254.0 114.6 258.2 116.2 258.1 118.1 266.0 128.7 279.6 131.8 291.0 137.1 302.1 137.6 308.6 142.1 309.0 149.1 320.0 145.0 326.7 143.4 326.7 140.9 319.2 134.9 312.2 123.4 303.2 122.3 287.6 111.5 278.3 110.3 279.9 108.0 276.7 102.3 273.8 96.8 266.7 101.3 266.4 104.7 261.9 105.1 256.3 97.9 247.6 92.5 244.2 77.6 207.7 99.9 205.5 99.0 207.9 134.2 222.4 160.0 222.3 160.0 217.3 176.0 217.3 189.7 230.9 195.0 244.0 199.8 247.7 207.5 251.4 213.4 241.7 220.9 241.5 227.5 246.4 235.3 261.9 240.8 268.9 245.4 283.2 259.2 289.7 262.8 289.3Z"/>
+          <path d="M353.5 177.5 369.7 177.7 373.7 203.8 376.4 211.1 374.1 216.2 375.3 226.5 351.3 226.6 353.4 233.5 350.8 235.7 348.4 233.7 347.5 230.4 346.3 234.9 343.9 234.3 343.2 215.6 346.6 178.9 345.7 177.6 353.5 177.5Z"/>
+          <path d="M152.5 153.1 152.5 222.5 133.7 222.5 99.0 208.3 99.9 205.5 102.2 204.0 101.7 201.7 100.5 201.6 99.8 197.1 101.7 195.3 101.6 190.6 105.3 186.1 100.7 179.1 99.7 164.1 103.1 163.6 105.2 165.0 106.1 153.1 152.5 153.1Z"/>
+          <path d="M287.6 159.2 327.6 159.2 328.4 161.6 325.5 165.3 331.5 165.3 331.2 167.6 327.8 172.2 328.0 175.1 323.6 182.2 323.8 184.6 320.2 188.1 320.8 189.5 317.6 195.2 319.2 196.8 318.2 202.0 291.6 201.8 291.6 195.3 288.4 195.4 287.5 194.2 288.0 172.7 286.2 159.2 287.6 159.2Z"/>
+          <path d="M21.0 91.8 51.0 91.9 51.0 128.6 100.7 177.5 105.3 186.1 101.6 190.6 101.7 195.3 99.8 197.1 101.7 205.0 77.6 207.7 74.4 198.4 67.8 192.7 65.7 193.0 64.3 189.3 62.1 189.8 58.2 188.0 55.1 184.7 46.6 184.3 45.0 182.7 45.1 176.3 33.4 161.4 33.0 157.5 34.4 155.5 33.1 153.3 31.5 153.6 28.6 150.1 27.7 143.5 29.4 143.5 28.7 139.0 27.8 141.7 25.9 142.1 23.7 140.4 22.0 135.3 16.3 129.1 15.3 118.4 10.6 113.2 10.1 110.9 12.4 105.6 13.3 98.7 11.5 94.5 11.9 91.8 21.0 91.8Z"/>
+          <path d="M162.9 104.0 217.3 104.0 217.4 153.1 152.5 153.1 152.5 104.1 162.9 104.0Z"/>
+          <path d="M87.6 6.1 87.6 18.7 90.6 22.1 90.7 25.4 94.3 27.4 100.9 35.0 103.6 35.0 102.0 42.4 103.0 44.3 101.3 45.6 101.5 48.2 103.5 49.5 106.7 46.5 108.4 47.7 109.0 51.1 111.7 54.4 111.6 56.8 114.6 57.9 116.9 62.5 122.9 60.4 128.7 60.6 130.8 58.1 134.0 61.5 134.0 91.8 78.5 91.8 78.5 69.4 79.7 65.4 77.2 64.2 76.5 62.5 83.8 47.6 80.8 45.0 78.3 38.6 78.5 6.1 87.6 6.1Z"/>
+          <path d="M323.1 85.6 349.4 85.8 349.1 88.1 352.0 95.4 351.9 124.3 350.9 126.5 352.2 131.3 348.0 137.4 346.1 145.0 347.0 147.2 343.1 148.3 343.7 151.2 342.5 152.2 338.0 150.4 337.1 153.3 335.6 153.1 333.5 149.6 333.5 144.6 325.7 138.2 328.0 130.5 322.9 129.5 322.3 125.4 316.3 119.7 315.2 115.9 316.0 109.5 318.6 108.1 320.1 105.0 320.3 102.9 318.7 101.2 319.3 99.0 325.8 96.9 327.4 94.2 327.5 90.3 323.1 85.6Z"/>
+          <path d="M366.2 94.8 377.2 94.8 377.1 131.2 373.8 132.4 371.4 131.9 371.5 134.3 367.7 137.4 365.7 141.3 363.3 138.8 361.3 140.3 361.4 141.7 359.3 142.1 358.7 140.9 355.6 143.4 351.3 141.1 347.3 143.3 348.0 137.4 352.2 131.3 350.9 126.5 351.9 124.3 352.0 95.4 355.7 96.2 358.5 94.8 366.2 94.8Z"/>
+          <path d="M316.3 73.5 317.8 73.5 319.2 76.5 318.1 77.9 319.1 82.6 322.4 84.0 327.7 91.8 325.8 96.9 319.3 99.0 318.7 101.2 320.3 102.9 320.1 105.0 318.6 108.1 316.0 109.5 315.9 111.7 313.0 108.8 275.6 109.1 272.2 92.2 267.6 83.2 269.4 78.1 268.0 73.7 316.3 73.5Z"/>
+          <path d="M218.7 116.3 279.8 116.3 283.8 118.4 281.7 121.9 284.3 126.0 286.3 126.6 286.2 153.1 217.4 153.1 217.3 116.3 218.7 116.3Z"/>
+          <path d="M385.5 131.4 387.6 133.1 389.1 132.2 392.6 133.1 394.9 131.5 395.3 133.6 397.7 135.6 398.5 141.7 400.5 144.9 403.4 146.5 396.5 151.6 392.6 156.2 387.5 158.2 346.9 157.0 347.1 159.2 334.4 159.2 334.9 157.7 336.3 158.2 336.6 152.6 338.0 150.4 342.5 152.2 343.7 151.2 343.1 148.3 347.0 147.2 346.1 145.0 348.2 142.1 351.3 141.1 355.6 143.4 358.7 140.9 359.3 142.1 361.4 141.7 361.3 140.3 363.3 138.8 365.7 141.3 367.7 137.4 371.5 134.3 371.4 131.9 373.8 132.4 377.1 131.2 377.1 127.3 380.6 127.3 382.6 130.9 385.5 131.4Z"/>
+          <path d="M295.6 201.8 318.2 202.0 319.9 211.6 316.0 218.9 315.1 218.6 313.9 226.6 331.4 226.6 330.5 230.6 333.4 236.6 330.5 239.4 332.7 240.2 333.7 238.3 335.6 240.2 334.4 242.5 332.3 241.9 331.8 244.7 338.3 248.8 336.8 250.9 330.4 247.2 330.4 245.1 328.7 245.8 328.1 249.2 323.8 247.6 321.6 250.0 318.9 248.7 317.7 245.7 314.8 244.5 314.0 242.0 311.6 242.3 311.5 240.8 307.6 244.5 299.1 241.5 293.4 242.6 292.6 241.4 294.8 237.0 294.5 231.7 296.3 227.3 293.6 217.0 291.6 214.4 291.6 201.8 295.6 201.8Z"/>
+          <path d="M389.7 95.1 358.5 94.8 362.8 88.7 364.2 83.0 361.2 72.3 361.5 66.4 363.6 63.1 363.8 58.9 369.7 53.5 369.5 58.0 370.5 58.2 371.8 52.2 375.1 50.7 374.3 48.0 375.9 45.8 382.6 47.3 383.8 49.0 389.4 50.7 391.0 53.3 389.7 54.7 391.4 58.6 390.8 63.2 388.9 64.3 388.5 66.7 386.2 67.5 385.5 71.4 387.7 72.4 391.5 67.7 394.7 66.5 397.2 69.2 399.3 79.9 398.4 84.3 396.8 85.0 396.8 83.4 395.8 83.8 389.7 95.1ZM370.7 46.2 370.8 47.6 369.6 47.9 370.7 46.2ZM351.4 53.9 349.9 52.7 350.8 50.9 348.6 50.7 349.6 46.8 346.6 43.8 327.9 38.7 325.2 35.9 338.3 30.7 345.9 25.0 348.0 25.9 343.4 30.9 343.5 33.2 345.3 31.5 348.5 31.7 351.0 32.9 353.2 36.3 359.6 37.5 364.6 34.7 374.8 33.5 375.1 37.0 379.5 37.7 383.4 36.4 383.5 40.7 384.7 42.5 386.5 42.9 386.7 41.7 388.5 41.7 389.5 43.0 388.7 43.9 381.2 43.7 378.5 42.2 378.1 44.7 370.7 41.7 369.2 43.3 364.2 43.3 362.8 45.4 359.9 46.5 360.1 44.9 358.8 44.5 358.3 46.2 355.2 47.0 351.4 53.9ZM340.1 18.7 336.5 20.4 336.6 19.1 342.5 16.2 340.1 18.7Z"/>
+          <path d="M310.4 34.2 307.8 34.7 307.8 41.9 302.4 46.3 302.3 48.0 304.5 49.7 303.0 58.2 315.7 67.4 317.5 70.1 317.8 73.5 269.2 73.5 269.2 51.5 265.5 47.7 268.0 45.1 267.9 38.8 266.0 34.8 265.5 23.2 262.9 16.6 263.2 10.0 262.0 6.1 281.3 6.1 281.3 1.4 283.1 1.6 286.5 9.6 293.4 10.7 293.9 12.0 301.4 10.7 305.8 12.9 307.1 15.6 310.0 14.0 314.5 17.9 321.3 15.4 322.1 17.3 327.7 17.0 330.2 18.5 332.6 18.3 322.2 23.0 309.6 33.2 310.4 34.2Z"/>
+          <path d="M343.2 177.6 345.7 177.6 346.6 178.9 343.2 215.6 343.9 234.3 339.7 233.7 333.4 236.6 330.5 230.6 331.4 226.6 313.9 226.6 315.1 218.6 316.0 218.9 319.9 211.6 319.7 208.0 318.3 206.4 319.2 196.8 317.6 195.2 320.8 189.5 320.2 188.1 323.8 184.6 323.6 182.2 326.7 178.7 326.1 177.6 343.2 177.6Z"/>
+          <path d="M312.0 108.9 315.9 111.7 315.2 115.9 316.3 119.7 322.3 125.4 322.9 129.5 328.0 130.5 325.7 138.2 333.5 144.6 333.5 149.6 335.6 153.1 337.1 153.3 336.3 158.2 334.9 157.7 333.3 159.2 333.3 162.2 331.5 165.3 325.5 165.3 328.4 161.6 327.6 159.2 286.2 159.2 286.3 126.6 284.3 126.0 281.7 121.9 283.8 118.4 280.8 117.4 275.6 109.1 312.0 108.9Z"/>
+          <path d="M198.8 6.1 198.9 55.1 133.9 55.1 134.0 61.5 130.8 58.1 128.7 60.6 122.9 60.4 116.9 62.5 114.6 57.9 111.6 56.8 111.7 54.4 109.0 51.1 108.4 47.7 106.7 46.5 103.5 49.5 101.5 48.2 101.3 45.6 103.0 44.3 102.0 42.4 103.6 35.0 100.9 35.0 94.3 27.4 90.7 25.4 90.6 22.1 87.6 18.7 87.6 6.1 198.8 6.1Z"/>
+          <path d="M205.5 79.6 250.2 79.6 255.3 82.4 256.4 81.2 262.1 81.5 267.0 83.8 267.6 85.5 269.3 85.9 271.0 91.4 272.2 92.2 272.5 97.5 274.2 98.5 274.5 107.5 279.8 116.3 217.3 116.3 217.3 104.0 198.8 104.0 198.8 79.6 205.5 79.6Z"/>
+          <path d="M78.5 91.8 106.2 91.9 106.1 162.9 105.2 165.0 103.1 163.6 99.7 164.1 100.7 177.5 51.0 128.6 51.0 91.9 78.5 91.8Z"/>
+          <path d="M167.6 153.1 208.5 153.1 207.9 214.3 175.0 214.3 175.8 216.9 160.2 216.9 160.2 222.5 152.5 222.5 152.5 153.1 167.6 153.1Z"/>
+          <path d="M262.0 6.1 263.2 10.0 262.9 16.6 265.5 23.2 266.0 34.8 267.9 38.8 268.2 43.7 198.8 43.5 198.8 6.1 262.0 6.1Z"/>
+          <path d="M416.9 92.1 416.9 108.5 415.5 109.2 416.1 112.4 414.0 119.9 410.4 123.8 408.2 123.5 406.1 125.2 404.2 130.1 402.8 128.2 400.1 135.4 397.7 135.6 395.3 133.6 394.9 131.5 392.6 133.1 389.1 132.2 387.6 133.1 382.6 130.9 380.6 127.3 377.1 127.3 377.2 95.6 389.7 95.1 394.5 97.8 395.4 96.9 398.7 99.4 405.6 98.1 416.9 92.1Z"/>
+          <path d="M235.5 153.1 286.2 153.1 288.0 172.7 287.5 194.2 280.6 190.3 280.0 191.4 277.1 190.6 272.0 191.8 270.2 193.6 265.5 191.7 264.9 190.3 262.5 193.0 261.8 191.5 260.7 192.0 257.7 190.0 256.1 191.6 253.3 188.4 251.5 187.9 250.4 189.0 243.9 187.2 243.2 184.8 239.1 185.1 236.3 182.9 236.3 159.2 208.5 159.2 208.5 153.1 235.5 153.1Z"/>
+          <path d="M21.2 40.7 24.1 41.9 25.4 47.0 30.1 48.4 34.2 46.4 40.0 47.7 45.1 46.0 49.0 46.2 60.3 42.9 79.5 42.9 83.0 45.9 83.8 47.6 76.5 62.5 77.2 64.2 79.7 65.4 78.5 69.4 78.5 91.8 11.9 91.8 10.6 90.4 10.0 83.7 8.8 81.6 12.3 69.7 14.0 43.5 14.4 41.5 18.1 39.7 21.2 40.7Z"/>
+          <path d="M198.8 43.5 268.2 43.7 265.5 47.7 269.2 51.5 269.2 73.5 268.0 73.7 269.4 78.1 267.6 83.2 269.3 85.9 262.1 81.5 256.4 81.2 255.3 82.4 250.2 79.6 198.8 79.6 198.8 43.5Z"/>
+          <path d="M347.1 159.2 346.9 157.0 406.1 158.1 405.7 161.0 402.8 163.9 401.2 163.4 397.5 165.7 397.3 164.5 394.0 168.1 389.3 170.6 386.7 170.7 383.8 174.5 381.9 174.8 381.7 177.7 326.1 177.6 333.3 162.2 333.3 159.2 347.1 159.2Z"/>
+          <path d="M219.5 159.2 236.3 159.2 236.3 182.9 239.1 185.1 243.2 184.8 243.9 187.2 250.4 189.0 251.5 187.9 253.3 188.4 256.1 191.6 257.7 190.0 260.7 192.0 261.8 191.5 262.5 193.0 264.9 190.3 265.5 191.7 270.2 193.6 272.0 191.8 277.1 190.6 280.0 191.4 280.6 190.3 288.4 195.4 291.6 195.3 291.6 214.4 293.6 217.0 296.3 227.3 294.5 231.7 294.8 237.0 292.6 241.4 293.4 242.6 287.1 244.3 285.4 243.4 285.1 241.4 283.0 242.5 282.5 244.2 283.7 247.2 279.1 252.6 273.5 255.9 269.0 255.9 267.3 254.7 269.7 257.9 266.2 258.3 260.4 271.4 259.4 271.1 259.1 272.7 260.2 272.3 258.9 277.5 262.1 287.9 259.3 289.1 258.1 287.5 253.0 287.1 248.7 284.8 244.0 281.2 241.5 275.2 241.2 269.6 233.6 259.8 230.1 249.8 223.2 241.8 214.7 240.4 214.2 241.7 212.0 242.1 207.5 251.2 205.9 251.2 194.6 243.2 191.0 231.8 178.8 220.8 174.8 215.5 175.0 214.3 207.9 214.3 208.2 159.2 219.5 159.2Z"/>
+          <path d="M123.6 91.9 134.0 91.8 134.0 104.1 152.5 104.1 152.5 153.1 106.1 153.1 106.2 91.9 123.6 91.9Z"/>
+          <path d="M78.5 6.1 78.3 38.6 79.5 42.9 60.3 42.9 49.0 46.2 45.1 46.0 40.0 47.7 34.2 46.4 30.1 48.4 25.4 47.0 24.9 43.3 22.1 40.6 19.7 41.1 18.1 39.7 13.3 38.8 14.9 36.3 13.0 33.8 9.9 21.5 8.1 19.7 7.4 16.1 8.4 13.7 14.1 16.4 25.0 17.3 26.5 20.0 27.7 19.8 28.5 26.7 29.4 26.4 28.8 20.8 30.3 18.0 29.1 16.8 27.9 9.1 25.1 7.5 25.4 6.1 78.5 6.1ZM25.8 14.6 27.0 14.0 26.8 16.5 25.3 15.6 25.8 14.6ZM22.9 11.2 24.0 9.6 25.3 11.6 24.9 13.2 22.8 12.8 22.9 11.2Z"/>
+          <path d="M325.2 35.9 327.9 38.7 346.6 43.8 349.6 46.8 348.6 50.7 350.8 50.9 349.9 52.7 351.4 53.9 351.0 55.4 349.2 55.7 347.2 60.4 348.2 60.8 354.6 53.1 356.5 52.4 350.0 68.8 348.4 76.5 349.4 85.8 323.1 85.6 322.4 84.0 319.1 82.6 318.1 77.9 319.2 76.5 317.9 75.3 317.5 70.1 315.7 67.4 303.0 58.2 304.5 49.7 302.3 48.0 302.4 46.3 307.8 41.9 307.8 34.7 309.6 33.7 312.4 34.4 321.3 31.1 322.1 32.0 320.8 33.6 325.2 35.9Z"/>
+          <path d="M152.2 55.1 198.7 55.1 198.8 104.0 134.0 104.1 133.9 55.1 152.2 55.1Z"/>
+        </g>
+        <g id="mapAbbr" class="mp-abbr">
+          <text x="103.8" y="217.7" text-anchor="middle" letter-spacing="0.5">AZ</text>
+          <text x="308.9" y="180.6" text-anchor="middle" letter-spacing="0.5">AR</text>
+          <text x="53.7" y="157.7" text-anchor="middle" letter-spacing="0.5">CA</text>
+          <text x="184.9" y="128.6" text-anchor="middle" letter-spacing="0.5">CO</text>
+          <text x="333.7" y="119.4" text-anchor="middle" letter-spacing="0.5">IL</text>
+          <text x="297.6" y="92.6" text-anchor="middle" letter-spacing="0.5">IA</text>
+          <text x="251.8" y="134.7" text-anchor="middle" letter-spacing="0.5">KS</text>
+          <text x="306.3" y="137.1" text-anchor="middle" letter-spacing="0.5">MO</text>
+          <text x="239.3" y="97.9" text-anchor="middle" letter-spacing="0.5">NE</text>
+          <text x="78.6" y="138.7" text-anchor="middle" letter-spacing="0.5">NV</text>
+          <text x="180.5" y="201.8" text-anchor="middle" letter-spacing="0.5">NM</text>
+          <text x="254.2" y="164.6" text-anchor="middle" letter-spacing="0.5">OK</text>
+          <text x="235.6" y="218.1" text-anchor="middle" letter-spacing="0.5">TX</text>
+          <text x="129.3" y="122.4" text-anchor="middle" letter-spacing="0.5">UT</text>
+          <text x="166.3" y="79.6" text-anchor="middle" letter-spacing="0.5">WY</text>
+        </g>
+        <g id="routeG"></g>
+        <g id="lodG"></g>
+        <g id="nodeG"></g>
+        <g id="posG" class="posg" opacity="0"><circle class="halo" r="9"/><circle class="dot" r="4.5"/></g>
+        </g>
+      </svg>
+      <div class="tripstat" id="tripStat">0 of 0 mi</div>
+      <div class="chgrow" id="chgRow"></div>
+    </div>
+    <div class="card tprog" id="tripProg"></div>
+    <div id="tripStats" class="stx"></div>
+    <div class="triptoggle">
+      <div><div class="tl">Track trip</div><div class="ts" id="trackStatus">Off — progress from Arrived checks</div></div>
+      <button class="sw" id="trackSw" type="button" role="switch" aria-checked="false" aria-label="Track trip"><span class="knob"></span></button>
+    </div>
+    <div id="tripStops"></div>
+  </div>
+
+  <!-- ================= PACK ================= -->
+  <div class="page" id="page-pack">
+    <div class="sign">
+      <div class="route" id="packRoute">Pack</div>
+      <h1>Pack</h1>
+      <div class="sub">Base list, trip templates, and whatever this trip needs.</div>
+    </div>
+    <div id="beforeLeave"></div>
+    <div class="roadbar">
+      <div class="row"><span class="lbl">Packed</span><span class="num" id="packNum">0 of 0 packed</span></div>
+      <div class="road"><div class="fill" id="packFill" style="background:var(--green)"></div></div>
+    </div>
+    <div class="chips" id="packChips">
+      <button class="chip on" data-f="all" type="button">All</button>
+      <button class="chip" data-f="unpacked" type="button">Unpacked</button>
+    </div>
+    <div id="packGroups"></div>
+  </div>
+
+  <!-- ================= SPEND ================= -->
+  <div class="page" id="page-spend">
+    <div class="sign">
+      <div class="route">Trip costs</div>
+      <h1>Spend</h1>
+      <div class="sub">Every dollar the drive costs, by day.</div>
+    </div>
+    <div class="card spc">
+      <div class="total"><b id="spSoFar">$0</b><span>so far · ~<span id="spProj">$0</span> projected</span></div>
+      <div class="bar" id="spBar"></div>
+      <div class="legend" id="spLegend"></div>
+      <div class="kpis">
+        <div class="kpi"><b id="kMile">–</b><span>per mile</span></div>
+        <div class="kpi"><b id="kDay">–</b><span>per day</span></div>
+        <div class="kpi"><b id="kMiles">0</b><span>mi driven</span></div>
+      </div>
+      <p class="hint" id="budgetRow"><a href="#" id="budgetLink">Set budget</a> <span id="budgetOver"></span> <span class="sep">·</span> <a href="#" id="importLink">Import</a></p>
+    </div>
+    <div id="spendDays"></div>
+    <div class="card spc">
+      <div class="dayh"><h2>Projection</h2><b>~<span id="spProj2">$0</span></b></div>
+      <p class="est" id="spEst"></p>
+    </div>
+  </div>
+
+  <div class="appver" id="appVer">Mile Marker v1 · build 2026-09-07 · local</div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</div>
+</div>
+
+<nav>
+  <button id="nav-back" class="back" type="button"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>Trips</button>
+  <button id="nav-trip" class="active" type="button"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Trip</button>
+  <button id="nav-pack" type="button"><svg viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7.3L12 12l8.7-4.7"/><path d="M12 22V12"/></svg>Pack</button>
+  <button id="nav-spend" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6.5v11M14.8 9.6c0-1.3-1.2-2.1-2.8-2.1s-2.8.8-2.8 2c0 2.6 5.6 1.4 5.6 4.1 0 1.3-1.2 2.1-2.8 2.1s-2.8-.8-2.8-2.1"/></svg>Spend</button>
+</nav>
+
+<script>
+  /* =========================================================================
+     Mile Marker — one object in localStorage "mileMarker_v1":
+       { settings, templates, trips:{ [id]:Trip }, meta }
+     The active trip is per device and lives in its own key "mileMarkerActive",
+     so it is never merged and two devices can sit on different trips.
+     EVERY renderer reads the active trip through T(); nothing is a code constant.
+     ========================================================================= */
+  var KEY="mileMarker_v1",AKEY="mileMarkerActive";
+  var mem=null,SNAP=null,initDone=false;
+  var HAD_STORE=(function(){try{return !!window.localStorage.getItem(KEY);}catch(e){return false;}})();   /* established device vs fresh install (decides first-run touched stamps) */
+  function load(){try{var r=window.localStorage.getItem(KEY);return r?JSON.parse(r):mem;}catch(e){return mem;}}
+
+  /* ---- change tracking: the state is flattened to dotted leaf paths; meta.touched[path] = ms of the last write (a path in touched with no leaf is a tombstone) ---- */
+  var SYNC_SKIP=[/^trips\.[^.]+\.ui(\.|$)/];   /* per-device UI state (tracking, open day): tracked locally, never merged */
+  function skipPath(p){for(var i=0;i<SYNC_SKIP.length;i++)if(SYNC_SKIP[i].test(p))return true;return false;}
+  var ID_ARRAY=[/^trips\.[^.]+\.stops$/,/^trips\.[^.]+\.charges$/,/^trips\.[^.]+\.expenses$/,
+    /^trips\.[^.]+\.spend\.entries$/,/^trips\.[^.]+\.pack\.items$/,/^trips\.[^.]+\.pack\.beforeLeave$/,
+    /^templates\.base$/,/^templates\.byType\.[^.]+$/,/^settings\.vehicles$/];   /* arrays of {id,…}: each element is its own leaf "<array>.<id>" */
+  function isIdArray(path){for(var i=0;i<ID_ARRAY.length;i++)if(ID_ARRAY[i].test(path))return true;return false;}
+  function leaves(obj,prefix,out){
+    out=out||{};
+    Object.keys(obj).forEach(function(k){
+      if(!prefix&&k==="meta")return;
+      var p=prefix?prefix+"."+k:k,v=obj[k];
+      if(skipPath(p))return;
+      if(Array.isArray(v)){
+        if(isIdArray(p)&&v.every(function(e){return e&&typeof e==="object"&&e.id!==undefined;}))v.forEach(function(e){out[p+"."+e.id]=JSON.stringify(e);});
+        else out[p]=JSON.stringify(v);
+      }else if(v&&typeof v==="object")leaves(v,p,out);
+      else out[p]=JSON.stringify(v===undefined?null:v);
+    });
+    return out;
+  }
+  function setLeaf(root,path,val){   /* val parsed, or undefined to delete; creates containers on the way (id-arrays where registered) */
+    var seg=path.split("."),o=root,i;
+    for(i=0;i<seg.length-1;i++){
+      var here=seg.slice(0,i+1).join(".");
+      if(o[seg[i]]===undefined||o[seg[i]]===null||typeof o[seg[i]]!=="object"){if(val===undefined)return;o[seg[i]]=isIdArray(here)?[]:{};}
+      o=o[seg[i]];
+    }
+    var last=seg[seg.length-1];
+    if(Array.isArray(o)){var idx=-1;for(var j=0;j<o.length;j++)if(o[j]&&String(o[j].id)===last){idx=j;break;}
+      if(val===undefined){if(idx>=0)o.splice(idx,1);}else if(idx>=0)o[idx]=val;else o.push(val);}
+    else{if(val===undefined)delete o[last];else o[last]=val;}
+  }
+  function commit(s,ts){   /* diff against the last committed snapshot; stamp each changed/added/removed leaf; ts 0 = code-driven (seeds), otherwise a user write */
+    s.meta=s.meta||{};s.meta.touched=s.meta.touched||{};
+    var now=leaves(s),T=s.meta.touched,changed=[];
+    if(SNAP){
+      Object.keys(now).forEach(function(p){if(now[p]!==SNAP[p]){changed.push(p);T[p]=ts>0?ts:(T[p]||0);}});
+      Object.keys(SNAP).forEach(function(p){if(!(p in now)){changed.push(p);T[p]=ts>0?ts:(T[p]||0);}});
+    }
+    if(SNAP)SNAP=now;
+    mem=s;
+    try{window.localStorage.setItem(KEY,JSON.stringify(s));}catch(e){}
+    if(changed.length)syncMarkDirty(changed);
+    return changed;
+  }
+  function save(s){return commit(s||state,initDone?Date.now():0);}
+  function saveSeed(s){return commit(s||state,0);}
+  function persistQuiet(){SNAP=leaves(state);mem=state;try{window.localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}   /* after a merge: touched is already right */
+
+  /* ---------- state root ---------- */
+  var DEFAULT_VEHICLE={id:"v-my",name:"Model Y",type:"ev",kwhPerMi:0.27,epaWhMi:270};
+  var state=load()||{};
+  state.settings=state.settings||{};
+  var S=state.settings;
+  S.units=S.units||"mi";S.currency=S.currency||"USD";S.mapMode=S.mapMode||"offline";
+  S.vehicles=S.vehicles||[];
+  if(!S.vehicles.length)S.vehicles.push(JSON.parse(JSON.stringify(DEFAULT_VEHICLE)));
+  S.defaultVehicleId=S.defaultVehicleId||S.vehicles[0].id;
+  state.templates=state.templates||{};
+  state.templates.base=state.templates.base||[];
+  state.templates.byType=state.templates.byType||{};
+  state.trips=state.trips||{};
+  state.meta=state.meta||{};state.meta.touched=state.meta.touched||{};
+  Object.keys(state.trips).forEach(function(id){normalizeTrip(state.trips[id]);});
+  if(!state.meta.stamped){   /* first run: an established device out-ranks a fresh install's defaults (stamped 0) */
+    var t0=HAD_STORE?Date.now():0,L0=leaves(state);Object.keys(L0).forEach(function(p){if(!(p in state.meta.touched))state.meta.touched[p]=t0;});
+    state.meta.stamped=true;
+    try{window.localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+  }
+  SNAP=leaves(state);
+
+  /* ---------- the active trip: T() is the ONE accessor every renderer uses ---------- */
+  var activeTripId=(function(){try{return window.localStorage.getItem(AKEY)||null;}catch(e){return null;}})();
+  if(activeTripId&&!state.trips[activeTripId])activeTripId=null;
+  function T(){return activeTripId?(state.trips[activeTripId]||null):null;}
+  function setActive(id){
+    activeTripId=id||null;
+    try{if(activeTripId)window.localStorage.setItem(AKEY,activeTripId);else window.localStorage.removeItem(AKEY);}catch(e){}
+  }
+  function vehicleOf(t){
+    var id=(t&&t.vehicle&&t.vehicle.id)||S.defaultVehicleId,v=null;
+    S.vehicles.forEach(function(x){if(x.id===id)v=x;});
+    return v||(t&&t.vehicle)||S.vehicles[0]||DEFAULT_VEHICLE;
+  }
+  function normalizeTrip(t){   /* additive defaults so a hand-injected or half-built trip never throws */
+    if(!t||typeof t!=="object")return t;
+    t.status=t.status||"planning";
+    t.name=t.name||"Untitled trip";
+    t.types=t.types||[];
+    t.vehicle=t.vehicle||JSON.parse(JSON.stringify(DEFAULT_VEHICLE));
+    t.stops=t.stops||[];t.waypts=t.waypts||[];t.charges=t.charges||[];t.expenses=t.expenses||[];
+    t.spend=t.spend||{};t.spend.entries=t.spend.entries||[];t.spend.dismissed=t.spend.dismissed||{};
+    t.pack=t.pack||{};t.pack.items=t.pack.items||[];t.pack.packed=t.pack.packed||{};
+    t.pack.beforeLeave=t.pack.beforeLeave||[];t.pack.collapsed=t.pack.collapsed||{};
+    t.log=t.log||{};t.log.arrived=t.log.arrived||{};t.log.arrivedAt=t.log.arrivedAt||{};t.log.rolled=t.log.rolled||{};
+    t.ui=t.ui||{};t.stats=t.stats||{};
+    return t;
+  }
+  function newTripId(){return "t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+  function createTrip(name,departDate,endDate){
+    var v=S.vehicles.filter(function(x){return x.id===S.defaultVehicleId;})[0]||S.vehicles[0]||DEFAULT_VEHICLE;
+    var t=normalizeTrip({id:newTripId(),name:name,status:"planning",departDate:departDate,endDate:endDate||"",
+      vehicle:{id:v.id,type:v.type,name:v.name,kwhPerMi:v.kwhPerMi,epaWhMi:v.epaWhMi}});
+    state.trips[t.id]=t;save(state);
+    return t;
+  }
+  function tripStatus(t){   /* Live on the first Rolling stamp, Done when the last stop is Arrived */
+    if(!t)return "planning";
+    var st=t.stops||[];
+    if(st.length>1&&t.log.arrived[st[st.length-1].id])return "done";
+    var rolled=false;Object.keys(t.log.rolled).forEach(function(k){if(t.log.rolled[k])rolled=true;});
+    if(rolled&&t.status!=="done")return "live";
+    return t.status==="done"?"done":(t.status==="live"?"live":"planning");
+  }
+  function refreshStatus(){
+    var t=T();if(!t)return;
+    var s=tripStatus(t);
+    if(s!==t.status){t.status=s;save(state);}
+  }
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+  function el(tag,cls,htmlc){var e=document.createElement(tag);if(cls)e.className=cls;if(htmlc!==undefined)e.innerHTML=htmlc;return e;}
+  function $(id){return document.getElementById(id);}
+
+  /* ---------- dates: everything derives from the active trip's departDate ---------- */
+  var WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],MO=["Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"];
+  var WD3=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],WDL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  function parseYMD(s){var p=String(s).split("-");return new Date(+p[0],+p[1]-1,+p[2]);}
+  function addDays(d,n){return new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);}
+  function ymd(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);}
+  function fmtShort(d){return MO[d.getMonth()]+" "+d.getDate();}
+  function fmtDay(d){return WD[d.getDay()]+" "+fmtShort(d);}
+  function isYMD(v){return /^\d{4}-\d{2}-\d{2}$/.test(String(v||""));}
+  function departDate(){var t=T();return parseYMD((t&&isYMD(t.departDate))?t.departDate:ymd(new Date()));}
+  function p2(n){return ("0"+n).slice(-2);}
+  function localISO(d){return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())+"T"+p2(d.getHours())+":"+p2(d.getMinutes());}
+  function parseLocalISO(v){var m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(v||""));if(m)return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);var d=new Date(v);return isNaN(d)?null:d;}
+  function money(v){return (v<0?"-$":"$")+Math.round(Math.abs(v)).toLocaleString();}
+  function money2(v){return "$"+(Math.round(v*100)/100).toLocaleString(undefined,{minimumFractionDigits:v%1?2:0,maximumFractionDigits:2});}
+  function fmtTime(ts){var d=new Date(ts),h=d.getHours();return ((h+11)%12+1)+":"+("0"+d.getMinutes()).slice(-2)+(h<12?" AM":" PM");}
+  function num(v){return Math.round(v).toLocaleString();}
+  function halfH(h){var r=Math.round(h*2)/2,w=Math.floor(r);return (r===w?w:(w?w+"½":"½"))+"h";}
+  function hm(min){if(min===null||min===undefined||isNaN(min))return "—";min=Math.round(min);var h=Math.floor(min/60),m=min%60;return h?h+"h "+p2(m)+"m":m+"m";}
+  function dash2(v,f){return (v===null||v===undefined||isNaN(v))?"—":f(v);}
+
+  /* ---------- geo ---------- */
+  var R_MI=3958.8;
+  function hav(a,b){
+    var dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180,s=Math.sin(dLat/2),t=Math.sin(dLng/2);
+    var h=s*s+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*t*t;
+    return 2*R_MI*Math.asin(Math.sqrt(h));
+  }
+  /* fixed projection carried over from sf-move (lon -125.5→-84.5, lat 25→49.5 onto 380×300).
+     Build 3 replaces it with a bbox fit over inlined outlines; the call sites do not change. */
+  function proj(lat,lng){return{x:(lng+125.5)/41*380,y:(49.5-lat)/24.5*300};}
+
+  /* ---------- route model: rebuilt from the active trip's stops on every full render ----------
+     WP = the polyline the route follows: each stop, preceded by that leg's Stop.route points
+     when it has them (OSRM, Build 5) and nothing when it does not — an absent route draws
+     the leg as a straight segment. Miles come from Stop.mi, never from the geometry. */
+  var RT={stops:[],WP:[],PTS:[],STOPW:[],CUM:[],CHORD:[],OFF:[],TOTAL:0,DAYS:1,D:"",M:""};
+  function nightsOf(s){return (s&&s.overnight)?Math.max(1,+s.nights||1):0;}
+  function nearPt(a,b){return !!a&&!!b&&Math.abs(a.lat-b.lat)<0.005&&Math.abs(a.lng-b.lng)<0.005;}
+  function hasRoute(){return RT.stops.length>=2;}
+  function buildRoute(){
+    var t=T(),st=((t&&t.stops)||[]).filter(function(s){return s&&isFinite(+s.lat)&&isFinite(+s.lng);});
+    var WP=[],STOPW=[],CUM=[],OFF=[],tot=0;
+    st.forEach(function(s,i){
+      var here={lat:+s.lat,lng:+s.lng};
+      if(i>0&&Array.isArray(s.route))s.route.forEach(function(r){
+        var p={lat:+r[0],lng:+r[1]};
+        if(!isFinite(p.lat)||!isFinite(p.lng))return;
+        if(nearPt(p,here)||nearPt(p,WP[WP.length-1]))return;
+        WP.push(p);
+      });
+      STOPW.push(WP.length);WP.push({lat:here.lat,lng:here.lng,stop:s.id});
+      tot+=i?(+s.mi||0):0;CUM.push(tot);
+      OFF.push(i===0?0:OFF[i-1]+(i===1?0:nightsOf(st[i-1])));
+    });
+    var PTS=WP.map(function(w){return proj(w.lat,w.lng);});
+    var CHORD=[];for(var i=0;i<WP.length-1;i++)CHORD.push(hav(WP[i],WP[i+1]));
+    var M=PTS.length?"M"+PTS[0].x.toFixed(2)+" "+PTS[0].y.toFixed(2):"";
+    function segD(i){   /* Catmull-Rom → cubic Bézier, waypoint i → i+1 */
+      var p0=PTS[Math.max(i-1,0)],p1=PTS[i],p2=PTS[i+1],p3=PTS[Math.min(i+2,PTS.length-1)];
+      return "C"+(p1.x+(p2.x-p0.x)/6).toFixed(2)+" "+(p1.y+(p2.y-p0.y)/6).toFixed(2)+" "+
+        (p2.x-(p3.x-p1.x)/6).toFixed(2)+" "+(p2.y-(p3.y-p1.y)/6).toFixed(2)+" "+p2.x.toFixed(2)+" "+p2.y.toFixed(2);
+    }
+    var D=M;for(i=0;i<PTS.length-1;i++)D+=segD(i);
+    var days=OFF.length?OFF[OFF.length-1]+1:1;
+    if(t&&isYMD(t.endDate)&&isYMD(t.departDate)){
+      var span=Math.round((parseYMD(t.endDate)-parseYMD(t.departDate))/86400000)+1;
+      if(span>days)days=span;
+    }
+    RT={stops:st,WP:WP,PTS:PTS,STOPW:STOPW,CUM:CUM,CHORD:CHORD,OFF:OFF,TOTAL:tot,DAYS:Math.max(1,days),D:D,M:M,segD:segD};
+  }
+  function legOf(i){for(var k=0;k<RT.stops.length-1;k++){if(i>=RT.STOPW[k]&&i<RT.STOPW[k+1])return k;}return Math.max(0,RT.stops.length-2);}
+  function locate(p){   /* nearest point on the route polyline → {seg,t,dist,miles,leg}; null when there is no route yet */
+    if(RT.WP.length<2)return null;
+    var best=null;
+    for(var i=0;i<RT.WP.length-1;i++){
+      var A=RT.WP[i],B=RT.WP[i+1],k=Math.cos((A.lat+B.lat)/2*Math.PI/180);
+      var ax=A.lng*k,ay=A.lat,bx=B.lng*k,by=B.lat,px=p.lng*k,py=p.lat;
+      var dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+      var t=l2?((px-ax)*dx+(py-ay)*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+      var d=hav(p,{lat:ay+dy*t,lng:(ax+dx*t)/k});
+      if(!best||d<best.dist)best={seg:i,t:t,dist:d};
+    }
+    var leg=legOf(best.seg),a0=RT.STOPW[leg],a1=RT.STOPW[leg+1],legLen=0,posLen=0;
+    for(var j=a0;j<a1;j++){legLen+=RT.CHORD[j];if(j<best.seg)posLen+=RT.CHORD[j];}
+    posLen+=best.t*RT.CHORD[best.seg];
+    best.leg=leg;best.miles=RT.CUM[leg]+(legLen?posLen/legLen:0)*(+RT.stops[leg+1].mi||0);
+    return best;
+  }
+  function stopForDay(d){
+    if(d<=0||!RT.stops.length)return null;
+    for(var i=1;i<RT.stops.length;i++)if(RT.OFF[i]===d-1)return RT.stops[i];
+    return RT.stops[RT.stops.length-1];
+  }
+  function dayLabel(d){if(d<=0)return "Pre-trip";var s=stopForDay(d);return "Day "+d+(s?" · "+esc(s.short||s.name||""):"");}
+  function dayTitle(d){var dt=addDays(departDate(),d-1);return WDL[dt.getDay()]+" · Day "+d;}
+  function todayDay(){var now=new Date(),t=new Date(now.getFullYear(),now.getMonth(),now.getDate());var n=Math.round((t-departDate())/86400000);return n<0?0:Math.min(n+1,RT.DAYS);}
+  function dayForDate(d){var n=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-departDate())/86400000);return n<0?0:Math.min(n+1,RT.DAYS);}
+
+  /* ---------- TRIP MAP ---------- */
+  var NS="http://www.w3.org/2000/svg";
+  function svgEl(t,attrs){var e=document.createElementNS(NS,t);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
+  var tripUI={L:0},SEGLEN=[],tripPos=null,tripWatch=null;
+  var NL_FS=9.5;
+  function lblFor(k,p,len){   /* node label placement: alternate above/below so neighbours never share a band,
+                                 then flip the anchor if the estimated box would run off the canvas */
+    var o=(k===0)?[4,12,"start"]:(k%2?[0,14,"middle"]:[0,-8,"middle"]);
+    if(!p)return o;
+    var w=0.56*NL_FS*(len||6),x=p.x+o[0];
+    var left=o[2]==="end"?x-w:(o[2]==="middle"?x-w/2:x);
+    if(left+w>VB.w-2)return [-6,o[1],"end"];
+    if(left<2)return [6,o[1],"start"];
+    return o;
+  }
+  function backupsOf(){var out=[];RT.stops.forEach(function(s){if(s.backup&&isFinite(+s.backup.lat))out.push(s.backup);});return out;}
+  function chargesOf(){var t=T();return (t&&t.charges)||[];}
+  function buildTripMap(){
+    var rg=$("routeG"),ng=$("nodeG");rg.innerHTML="";ng.innerHTML="";
+    tripUI={L:0,bg:null,done:null,nodes:[],pos:$("posG")};
+    SEGLEN=[0];Z.markers=[];
+    if(RT.PTS.length>=2){
+      rg.appendChild(svgEl("path",{"class":"rt-case",d:RT.D}));
+      var base=svgEl("path",{"class":"rt-base",d:RT.D});rg.appendChild(base);
+      var done=svgEl("path",{"class":"rt-done",d:RT.D});rg.appendChild(done);
+      /* cumulative path length at every waypoint, so the driven portion lands exactly on the gray route */
+      var tmp=svgEl("path",{d:RT.M}),d=RT.M;rg.appendChild(tmp);
+      for(var i=0;i<RT.PTS.length-1;i++){d+=RT.segD(i);tmp.setAttribute("d",d);SEGLEN.push(tmp.getTotalLength());}
+      rg.removeChild(tmp);
+      var L=base.getTotalLength();
+      done.setAttribute("stroke-dasharray",L);done.setAttribute("stroke-dashoffset",L);
+      tripUI.L=L;tripUI.bg=base;tripUI.done=done;
+    }
+    backupsOf().forEach(function(b){   /* hollow grey node, never part of the miles or the day count */
+      var p=proj(+b.lat,+b.lng);
+      ng.appendChild(svgEl("circle",{"class":"bk",cx:p.x.toFixed(2),cy:p.y.toFixed(2),r:3}));
+    });
+    chargesOf().forEach(function(c){   /* ⚡ sessions: above the route + backup markers, below the stop nodes */
+      if(!isFinite(+c.lat))return;
+      var p=proj(+c.lat,+c.lng);
+      ng.appendChild(svgEl("circle",{"class":"chg"+(c.planned?" plan":""),cx:p.x.toFixed(2),cy:p.y.toFixed(2),r:3}));
+    });
+    RT.stops.forEach(function(s,k){
+      var p=RT.PTS[RT.STOPW[k]],nm=s.short||s.name||"",o=lblFor(k,p,nm.length);
+      var n=svgEl("circle",{"class":"nd"+(k===0?" start":"")+(s.home?" home":""),cx:p.x.toFixed(2),cy:p.y.toFixed(2),r:k===0?3.6:4.6});
+      ng.appendChild(n);tripUI.nodes.push(n);
+      var t=svgEl("text",{"class":"nl"+(k>0?" b":""),x:(p.x+o[0]).toFixed(2),y:(p.y+o[1]).toFixed(2),"text-anchor":o[2],"data-cx":p.x.toFixed(2),"data-cy":p.y.toFixed(2)});
+      t.textContent=nm;ng.appendChild(t);
+    });
+    zoomLayer.appendChild(tripUI.pos);   /* keep the live dot above everything (inside the zoom layer) */
+    /* everything that must keep a constant screen size while the geography zooms */
+    Array.prototype.forEach.call(ng.children,function(e){
+      var cx=e.getAttribute("data-cx")||e.getAttribute("cx"),cy=e.getAttribute("data-cy")||e.getAttribute("cy");
+      Z.markers.push({el:e,c:true,x:+(cx!==null?cx:e.getAttribute("x")),y:+(cy!==null?cy:e.getAttribute("y"))});
+    });
+    Array.prototype.forEach.call(tripUI.pos.children,function(e){Z.markers.push({el:e,c:false});});
+    buildLOD();
+    applyZoom();
+  }
+  /* level-of-detail: charger names fade in with zoom, counter-scaled around their node.
+     Towns and interstate shields were hand-placed for one corridor in sf-move; they come back
+     with the real outline dataset in Build 3. */
+  var lodUI={chg:null,labels:[],chgLabels:[],lastS:-1};
+  function tbox(ax,ay,anchor,fs,len){var w=0.56*fs*len,x=anchor==="end"?ax-w:anchor==="middle"?ax-w/2:ax;return{x:x,y:ay-0.75*fs,w:w,h:fs};}
+  function buildLOD(){
+    var g=$("lodG");if(!g)return;g.innerHTML="";
+    var cg=svgEl("g",{"class":"lod-chg",opacity:0});g.appendChild(cg);
+    lodUI={chg:cg,labels:[],chgLabels:[],lastS:-1};
+    RT.stops.forEach(function(st,k){var nm=String(st.short||st.name||""),p=RT.PTS[RT.STOPW[k]],o=lblFor(k,p,nm.length),b=tbox(p.x+o[0],p.y+o[1],o[2],NL_FS,nm.length);
+      lodUI.labels.push({x:p.x,y:p.y,dx:b.x-p.x,dy:b.y-p.y,w:b.w,h:b.h});});
+    chargesOf().forEach(function(c){
+      if(!isFinite(+c.lat))return;
+      var p=proj(+c.lat,+c.lng),x=+p.x.toFixed(2),y=+p.y.toFixed(2),nm=chgPlace(c);
+      var tx=svgEl("text",{"class":"cn",x:(x+4.2).toFixed(2),y:(y+2.6).toFixed(2)});tx.textContent=nm;
+      cg.appendChild(tx);Z.markers.push({el:tx,c:true,x:x,y:y});
+      var b=tbox(x+4.2,y+2.6,"start",8,nm.length);lodUI.chgLabels.push({x:x,y:y,dx:b.x-x,dy:b.y-y,w:b.w,h:b.h});
+    });
+  }
+  function updateLOD(s){
+    if(!lodUI.chg)return;
+    var ca=Math.max(0,Math.min(1,(s-2.6)/0.6));
+    lodUI.chg.setAttribute("opacity",ca.toFixed(3));
+  }
+  function tripProgress(){
+    if(tripPos){var l=locate(tripPos);if(l)return{miles:l.miles,seg:l.seg,t:l.t,live:true};}
+    var t=T(),last=0;
+    if(t)RT.stops.forEach(function(s,i){if(t.log.arrived[s.id])last=i;});
+    return{miles:RT.CUM[last]||0,seg:RT.STOPW[last]||0,t:0,live:false};
+  }
+  function updateTripMap(){
+    var t=T();if(!t)return;
+    var pr=tripProgress();
+    if(tripUI.L){
+      var len=pr.seg>=SEGLEN.length-1?SEGLEN[SEGLEN.length-1]:SEGLEN[pr.seg]+pr.t*(SEGLEN[pr.seg+1]-SEGLEN[pr.seg]);
+      tripUI.done.setAttribute("stroke-dashoffset",(tripUI.L-len).toFixed(2));
+      var pt=tripUI.bg.getPointAtLength(len);
+      tripUI.pos.style.transform="translate("+pt.x.toFixed(2)+"px,"+pt.y.toFixed(2)+"px)";
+      tripUI.pos.setAttribute("opacity",pr.live?1:(pr.miles>0?.55:0));
+    }else tripUI.pos.setAttribute("opacity",0);
+    tripUI.nodes.forEach(function(n,i){n.classList.toggle("done",!!t.log.arrived[RT.stops[i].id]||(pr.live&&RT.CUM[i]<=pr.miles+0.5));});
+    var next=-1;for(var i=0;i<RT.stops.length;i++){if(RT.CUM[i]>pr.miles+0.5){next=i;break;}}
+    $("tripStat").innerHTML=hasRoute()
+      ?('<strong>'+Math.round(pr.miles)+'</strong> of '+num(RT.TOTAL)+' mi'+(next>=0?' · next: '+esc(RT.stops[next].short||RT.stops[next].name)+' in ~'+Math.round(RT.CUM[next]-pr.miles)+' mi':' · arrived'))
+      :'No stops yet';
+    renderTripProg();
+  }
+  var chgOpen=false;
+  function chgPlace(c){return String(c.name||"").split(/\s[–—-]\s/)[0];}
+  function chgTs(c){var d=parseYMD(c.date),t=String(c.time||"00:00").split(":");return new Date(d.getFullYear(),d.getMonth(),d.getDate(),+t[0]||0,+t[1]||0).getTime();}
+  function realCharges(){return chargesOf().filter(function(c){return !c.planned&&c.kwh>0;}).sort(function(a,b){return chgTs(a)-chgTs(b);});}
+  function chgRate(c){return c.rate>0?c.rate:(c.cost>0&&c.kwh>0?c.cost/c.kwh:0);}
+  function chgShort(c,all){
+    var par=/\(([^)]+)\)/.exec(c.name||"");if(par)return par[1];
+    var place=chgPlace(c),city=place.split(",")[0].trim(),st=(place.split(",")[1]||"").trim();
+    var dup=(all||[]).some(function(o){return o!==c&&chgPlace(o).split(",")[0].trim()===city;});
+    return dup&&st?city+" "+st:city;
+  }
+  function chgTiny(c,all){return chgShort(c,all);}
+  function renderCharging(){
+    var w=$("chgRow");if(!w)return;w.innerHTML="";
+    var list=chargesOf(),n=0,np=0,kwh=0,cost=0;
+    list.forEach(function(c){if(c.planned){np++;return;}n++;kwh+=c.kwh||0;cost+=c.cost||0;});
+    var any=list.length>0;
+    w.classList.toggle("open",chgOpen&&any);
+    var h=el("div","chgh",any
+      ?('<span><span class="cdot"></span>Charging · <b>'+n+'</b> '+(n===1?"stop":"stops")+' · <b>'+(Math.round(kwh*10)/10)+'</b> kWh · <b>'+money2(cost)+'</b>'+(np?' · '+np+' planned':'')+'</span><span class="chev">▼</span>')
+      :'<span><span class="cdot plan"></span>No charges logged</span>');
+    if(any){
+      h.setAttribute("role","button");h.setAttribute("tabindex","0");h.setAttribute("aria-expanded",chgOpen?"true":"false");
+      var tog=function(){chgOpen=!chgOpen;renderCharging();};
+      h.addEventListener("click",tog);
+      h.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();tog();}});
+    }
+    w.appendChild(h);
+    var l=el("div","chgl");
+    list.forEach(function(c){
+      var a=document.createElement("a");
+      a.href="https://maps.apple.com/?address="+encodeURIComponent(c.addr||c.name||"");a.target="_blank";a.rel="noopener";
+      if(c.planned){a.className="plan";a.innerHTML='<span class="cdot plan"></span>Planned · '+esc(c.name||"")+(c.leg?' <small>· '+esc(c.leg)+'</small>':'');l.appendChild(a);return;}
+      a.innerHTML='<span class="cdot"></span>'+esc(fmtShort(parseYMD(c.date))+" "+(c.time||""))+' · '+esc(chgPlace(c))+' <small>· '+(Math.round((c.kwh||0)*10)/10)+' kWh @ $'+(+c.rate||0).toFixed(2)+' · '+money2(c.cost||0)+(c.min?' · '+c.min+' min':'')+'</small>';
+      l.appendChild(a);
+    });
+    w.appendChild(l);
+  }
+  function ensureTripMap(){buildTripMap();updateTripMap();renderCharging();}
+
+  /* ---------- TRIP MAP: pinch-zoom + pan. Transform-only, rAF springs, nothing persisted ---------- */
+  var VB={x:0,y:0,w:380,h:300},ZMIN=1,ZMAX=5;
+  var Z={s:1,tx:0,ty:0,markers:[],ptrs:{},raf:null,anim:null,lastTap:0};
+  var zoomSvg=$("tripSvg"),zoomLayer=$("zoomLayer"),zoomReset=$("mapReset");
+  var reducedMotion=!!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  function vb(){   /* the viewBox region actually on screen: with preserveAspectRatio "slice" a height-capped SVG crops top+bottom, so the box is shorter */
+    var r=zoomSvg.getBoundingClientRect();if(!r.width||!r.height)return VB;
+    var ea=r.width/r.height,va=VB.w/VB.h;
+    if(ea>va*1.001){var h=VB.w/ea;return{x:VB.x,y:VB.y+(VB.h-h)/2,w:VB.w,h:h};}
+    if(ea<va*0.999){var w=VB.h*ea;return{x:VB.x+(VB.w-w)/2,y:VB.y,w:w,h:VB.h};}
+    return VB;
+  }
+  function vbCenter(){var b=vb();return{x:b.x+b.w/2,y:b.y+b.h/2};}
+  function zb(s){
+    var b=vb(),lo=b.x+b.w-s*(VB.x+VB.w),hi=b.x-s*VB.x,lo2=b.y+b.h-s*(VB.y+VB.h),hi2=b.y-s*VB.y;
+    if(lo>hi){lo=hi=(lo+hi)/2;}if(lo2>hi2){lo2=hi2=(lo2+hi2)/2;}
+    return{txLo:lo,txHi:hi,tyLo:lo2,tyHi:hi2};
+  }
+  function clampZ(s,tx,ty){s=Math.min(ZMAX,Math.max(ZMIN,s));var b=zb(s);return{s:s,tx:Math.min(b.txHi,Math.max(b.txLo,tx)),ty:Math.min(b.tyHi,Math.max(b.tyLo,ty))};}
+  function rub(x,dim){return (1-1/(x*0.55/dim+1))*dim;}   /* iOS rubber-band: progressive resistance past a limit */
+  function rubberRange(v,lo,hi,dim){return v<lo?lo-rub(lo-v,dim):v>hi?hi+rub(v-hi,dim):v;}
+  function applyZoom(){
+    var s=Z.s,k=(1/s).toFixed(4);
+    zoomLayer.setAttribute("transform","translate("+Z.tx.toFixed(3)+" "+Z.ty.toFixed(3)+") scale("+s.toFixed(4)+")");
+    for(var i=0;i<Z.markers.length;i++){var m=Z.markers[i];
+      m.el.setAttribute("transform",m.c?"translate("+m.x+" "+m.y+") scale("+k+") translate("+(-m.x)+" "+(-m.y)+")":"scale("+k+")");}
+    updateLOD(s);
+    var zoomed=s>1.001;
+    zoomSvg.classList.toggle("zoomed",zoomed);
+    zoomReset.classList.toggle("show",zoomed);zoomReset.setAttribute("aria-hidden",zoomed?"false":"true");zoomReset.tabIndex=zoomed?0:-1;
+  }
+  function svgPt(e){var r=zoomSvg.getBoundingClientRect(),b=vb();return{x:b.x+(e.clientX-r.left)/r.width*b.w,y:b.y+(e.clientY-r.top)/r.height*b.h};}
+  function stopAnim(){if(Z.raf){cancelAnimationFrame(Z.raf);Z.raf=null;}Z.anim=null;}
+  function springTo(s,tx,ty,v0,snap){   /* critically damped, interruptible: always starts from the presentation value */
+    stopAnim();
+    if(reducedMotion||snap){Z.s=s;Z.tx=tx;Z.ty=ty;applyZoom();return;}
+    var w=2*Math.PI/0.45;
+    Z.anim={to:{s:s,tx:tx,ty:ty},v:{s:0,tx:v0?v0.x:0,ty:v0?v0.y:0},last:performance.now()};
+    function step(now){
+      var A=Z.anim;if(!A)return;
+      var dt=Math.min(0.032,Math.max(0,(now-A.last)/1000));A.last=now;var done=true;
+      ["s","tx","ty"].forEach(function(key){
+        var x=Z[key],t=A.to[key],v=A.v[key];
+        v+=(-w*w*(x-t)-2*w*v)*dt;x+=v*dt;Z[key]=x;A.v[key]=v;
+        var eps=key==="s"?0.0005:0.05;if(Math.abs(x-t)>eps||Math.abs(v)>eps*20)done=false;
+      });
+      if(done){Z.s=A.to.s;Z.tx=A.to.tx;Z.ty=A.to.ty;Z.anim=null;Z.raf=null;applyZoom();return;}
+      applyZoom();Z.raf=requestAnimationFrame(step);
+    }
+    Z.raf=requestAnimationFrame(step);
+  }
+  function zoomTo(s,anchor,animate){
+    var a=anchor||vbCenter(),q={x:(a.x-Z.tx)/Z.s,y:(a.y-Z.ty)/Z.s};
+    var t=clampZ(s,a.x-s*q.x,a.y-s*q.y);springTo(t.s,t.tx,t.ty,null,!animate);
+  }
+  function resetMapZoom(animate){zoomTo(1,null,animate);}
+  var G=null;
+  function ptrList(){var a=[];for(var k in Z.ptrs)a.push(Z.ptrs[k]);return a;}
+  function beginGesture(prev){
+    var p=ptrList();stopAnim();
+    G={s0:Z.s,tx0:Z.tx,ty0:Z.ty,t0:prev?prev.t0:performance.now(),moved:!!(prev&&prev.moved),samples:[],anchor:null};
+    if(p.length>=2){var a=p[0],b=p[1],m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      G.two=true;G.d0=Math.max(1,Math.hypot(a.x-b.x,a.y-b.y));G.m0=m;G.q={x:(m.x-Z.tx)/Z.s,y:(m.y-Z.ty)/Z.s};G.anchor=m;}
+    else{G.two=false;G.p0={x:p[0].x,y:p[0].y};}
+  }
+  function onDown(e){
+    if(e.pointerType==="mouse"&&e.button!==0)return;
+    var pt=svgPt(e);Z.ptrs[e.pointerId]={x:pt.x,y:pt.y};
+    try{zoomSvg.setPointerCapture(e.pointerId);}catch(_){}
+    beginGesture(null);
+  }
+  function onMove(e){
+    var P=Z.ptrs[e.pointerId];if(!P||!G)return;
+    var pt=svgPt(e);P.x=pt.x;P.y=pt.y;
+    var p=ptrList();
+    if(G.two&&p.length>=2){   /* pinch: zoom about the finger midpoint, rubber-band past 1–5 */
+      var a=p[0],b=p[1],d=Math.hypot(a.x-b.x,a.y-b.y),m={x:(a.x+b.x)/2,y:(a.y+b.y)/2},sr=G.s0*d/G.d0;
+      var s=sr>ZMAX?ZMAX+rub(sr-ZMAX,2):sr<ZMIN?ZMIN-rub(ZMIN-sr,0.35):sr,bb=zb(Math.max(ZMIN,s));
+      Z.s=s;Z.tx=rubberRange(m.x-s*G.q.x,bb.txLo,bb.txHi,VB.w);Z.ty=rubberRange(m.y-s*G.q.y,bb.tyLo,bb.tyHi,VB.h);G.anchor=m;
+      if(Math.abs(d-G.d0)>3||Math.hypot(m.x-G.m0.x,m.y-G.m0.y)>3)G.moved=true;
+    }else if(!G.two){   /* one finger: pan only while zoomed, so the page keeps scrolling at 1× */
+      if(G.s0<=1.001)return;
+      var dx=pt.x-G.p0.x,dy=pt.y-G.p0.y,b1=zb(Z.s);
+      Z.tx=rubberRange(G.tx0+dx,b1.txLo,b1.txHi,VB.w);Z.ty=rubberRange(G.ty0+dy,b1.tyLo,b1.tyHi,VB.h);
+      if(Math.hypot(dx,dy)>3)G.moved=true;
+    }else return;
+    G.samples.push({t:performance.now(),tx:Z.tx,ty:Z.ty});if(G.samples.length>6)G.samples.shift();
+    applyZoom();
+  }
+  function onUp(e){
+    if(!Z.ptrs[e.pointerId])return;
+    delete Z.ptrs[e.pointerId];
+    try{zoomSvg.releasePointerCapture(e.pointerId);}catch(_){}
+    if(ptrList().length){var keep=G;beginGesture(keep);return;}
+    var g=G,now=performance.now();G=null;
+    if(g&&!g.moved&&now-g.t0<250){
+      if(Z.lastTap&&now-Z.lastTap<300){Z.lastTap=0;resetMapZoom(true);return;}
+      Z.lastTap=now;
+    }else Z.lastTap=0;
+    settle(g);
+  }
+  function settle(g){   /* release: project momentum (decelerationRate .998), clamp, then spring to rest */
+    var v={x:0,y:0};
+    if(g&&g.samples.length>1){var a=g.samples[0],b=g.samples[g.samples.length-1],dt=b.t-a.t;if(dt>0&&dt<200){v.x=(b.tx-a.tx)/dt;v.y=(b.ty-a.ty)/dt;}}
+    var f=0.998/(1-0.998),s=Math.min(ZMAX,Math.max(ZMIN,Z.s)),tx=Z.tx+v.x*f,ty=Z.ty+v.y*f;
+    if(s!==Z.s){var an=(g&&g.anchor)||vbCenter(),q={x:(an.x-Z.tx)/Z.s,y:(an.y-Z.ty)/Z.s};tx=an.x-s*q.x;ty=an.y-s*q.y;}
+    var t=clampZ(s,tx,ty);
+    springTo(t.s,t.tx,t.ty,{x:v.x*1000,y:v.y*1000},false);
+  }
+  zoomSvg.addEventListener("pointerdown",onDown);
+  zoomSvg.addEventListener("pointermove",onMove);
+  zoomSvg.addEventListener("pointerup",onUp);
+  zoomSvg.addEventListener("pointercancel",onUp);
+  zoomReset.addEventListener("click",function(){resetMapZoom(true);});
+  window.addEventListener("resize",function(){if(!G&&!Z.anim){var t=clampZ(Z.s,Z.tx,Z.ty);Z.s=t.s;Z.tx=t.tx;Z.ty=t.ty;applyZoom();}});
+
+  /* ---------- TRIP: hero + stop cards ---------- */
+  var MISRC={osrm:"road",est:"est.",manual:"manual"};
+  function renderTripHead(){
+    var t=T();if(!t)return;
+    var a=RT.stops[0],b=RT.stops[RT.stops.length-1];
+    $("tripName").textContent=t.name;
+    $("tripRoute").textContent=hasRoute()?((a.short||a.name)+" → "+(b.short||b.name)):"No stops yet";
+    var d0=isYMD(t.departDate)?fmtDay(departDate()):"No date";
+    $("tripSub").textContent=d0+(hasRoute()?" · "+num(RT.TOTAL)+" mi · "+RT.DAYS+" day"+(RT.DAYS===1?"":"s"):"");
+    $("packRoute").textContent=t.name;
+  }
+  function renderTripStops(){
+    var t=T(),wrap=$("tripStops");if(!t||!wrap)return;wrap.innerHTML="";
+    if(!RT.stops.length){
+      wrap.appendChild(el("div","card","<div class=\"empty\">No stops on this trip yet. The Stops sheet arrives in Build 4.</div>"));
+      renderStats();return;
+    }
+    RT.stops.forEach(function(s,i){
+      var arr=!!t.log.arrived[s.id];
+      var dt=addDays(departDate(),RT.OFF[i]||0);
+      var note=nightsOf(s)?(nightsOf(s)+(nightsOf(s)===1?" night":" nights")):"";
+      var badge=s.miSrc?' <span class="sptag">'+esc(MISRC[s.miSrc]||s.miSrc)+'</span>':'';
+      var card=el("div","card tripstop"+(arr?" done":""),
+        '<div class="sh"><span class="day">'+(i?"Day "+(RT.OFF[i]+1):"Start")+' · '+esc(fmtDay(dt))+'</span>'+
+        '<span class="mi">'+(i?num(+s.mi||0)+' mi from '+esc(RT.stops[i-1].short||RT.stops[i-1].name)+badge:'wheels up '+esc(fmtShort(dt)))+'</span></div>'+
+        '<div class="nm">'+esc(s.name||s.short||"")+(note?' <span class="note">· '+esc(note)+'</span>':'')+'</div>'+
+        (s.hotel?'<div class="hot">'+esc(s.hotel)+'</div>':'')+
+        (s.petFee?'<div class="sc">Pet fee '+money2(+s.petFee)+'</div>':'')+
+        (s.backup?'<div class="bkrow"><span>Backup</span><a class="alt" href="https://maps.apple.com/?q='+encodeURIComponent(s.backup.chargerQuery||s.backup.name||"")+'">'+esc(s.backup.name||s.backup.short||"")+' ›</a></div>':''));
+      card.setAttribute("data-stop",s.id);
+      if(i===0){
+        var dr=el("div","daterow",'<label for="departDate">Wheels up</label><input type="date" id="departDate">');
+        var inp=dr.querySelector("input");inp.value=isYMD(t.departDate)?t.departDate:"";
+        var onDate=function(){
+          var v=inp.value;
+          if(!isYMD(v)||v===t.departDate)return;
+          t.departDate=v;save(state);renderAll();
+        };
+        inp.addEventListener("change",onDate);
+        card.appendChild(dr);
+      }
+      var row=el("div","check"+(arr?" on":""),'<span class="ring">✓</span><span><span class="ct">Arrived</span></span>');
+      row.setAttribute("role","checkbox");row.setAttribute("tabindex","0");row.setAttribute("aria-checked",arr?"true":"false");
+      var tog=function(){
+        var on=!t.log.arrived[s.id];t.log.arrived[s.id]=on;
+        if(on){if(!t.log.arrivedAt[s.id])t.log.arrivedAt[s.id]=localISO(new Date());}else delete t.log.arrivedAt[s.id];
+        save(state);refreshStatus();renderTripStops();updateTripMap();
+      };
+      row.addEventListener("click",tog);
+      row.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();tog();}});
+      card.appendChild(row);
+      if(i>0)card.appendChild(stampRow(s));
+      var btns=[];
+      if(s.mapsUrl)btns.push('<a class="btn" href="'+esc(s.mapsUrl)+'">Hotel in Apple Maps</a>');
+      if(s.chargerQuery)btns.push('<a class="btn" href="https://maps.apple.com/?q='+encodeURIComponent(s.chargerQuery)+'">Supercharger</a>');
+      if(s.hotelUrl)btns.push('<a class="btn go" href="'+esc(s.hotelUrl)+'">Booking</a>');
+      if(btns.length)card.appendChild(el("div","btns"+(btns.length>1?" three":""),btns.join("")));
+      wrap.appendChild(card);
+    });
+    renderStats();
+  }
+  function stampRow(s){
+    var t=T(),r=el("div","rollrow"),ro=t.log.rolled[s.id],ar=t.log.arrivedAt[s.id];
+    function chip(label,iso,key){
+      var d=parseLocalISO(iso),b=el("button","chipbtn",esc(label)+" "+(d?esc(fmtTime(d)):"?"));b.type="button";b.setAttribute("aria-label",label+" time, tap to edit");
+      b.addEventListener("click",function(){
+        var ed=el("span","stampEd",'<input type="time" aria-label="'+label+' time"><button class="btn go" type="button">Save</button><button class="btn" type="button">Clear</button>');
+        var inp=ed.querySelector("input");inp.value=String(iso).slice(11,16);b.replaceWith(ed);inp.focus();
+        ed.querySelector(".go").addEventListener("click",function(){if(/^\d\d:\d\d$/.test(inp.value)){t.log[key][s.id]=String(iso).slice(0,10)+"T"+inp.value;save(state);renderTripStops();}});
+        ed.querySelectorAll(".btn")[1].addEventListener("click",function(){delete t.log[key][s.id];save(state);refreshStatus();renderTripStops();});
+      });
+      return b;
+    }
+    if(ro)r.appendChild(chip("Rolled",ro,"rolled"));
+    else{var rb=el("button","btn","Rolling");rb.type="button";rb.addEventListener("click",function(){t.log.rolled[s.id]=localISO(new Date());save(state);refreshStatus();renderTripStops();});r.appendChild(rb);}
+    if(ar)r.appendChild(chip("Arrived",ar,"arrivedAt"));
+    return r;
+  }
+
+  /* ---------- TRIP STATS: computed live from trip.charges + rolled/arrived stamps; every missing input shows "—" ---------- */
+  var ST_DEF={scope:"trip",showPlanned:true,sessionsScope:"scoped",costUnit:"kwh",milesMetric:"miles",arcMetric:"miles",chgDay:null,speedUnit:"kwh",sort:"time"};
+  function stS(){var t=T(),s=(t&&t.stats)||{},o={};for(var k in ST_DEF)o[k]=(s[k]===undefined||s[k]===null)?ST_DEF[k]:s[k];return o;}   /* defaults never written until the user touches a control */
+  function stSet(k,v){var t=T();if(!t)return;t.stats=t.stats||{};t.stats[k]=v;save(state);renderStats();}
+  var STV={sel:null};   /* Miles-per-day row selection — view-only, not persisted */
+  function scopeDay(){var s=stS().scope;return s==="trip"?null:Math.max(1,Math.min(RT.DAYS,+s||1));}
+  function dayStats(d){
+    var t=T(),st=stopForDay(d);if(!t||!st)return null;var k=RT.stops.indexOf(st);
+    var rolled=t.log.rolled[st.id]?parseLocalISO(t.log.rolled[st.id]):null,arrived=t.log.arrivedAt[st.id]?parseLocalISO(t.log.arrivedAt[st.id]):null;
+    var ch=chargesOf().filter(function(c){return !c.planned&&c.date&&dayForDate(parseYMD(c.date))===d;}).sort(function(a,b){return chgTs(a)-chgTs(b);});
+    if(!rolled&&!arrived&&!ch.length&&!t.log.arrived[st.id])return null;
+    var kwh=0,cost=0,min=0;ch.forEach(function(c){kwh+=c.kwh||0;cost+=c.cost||0;min+=c.min||0;});
+    var miles=+st.mi||0,d2d=(rolled&&arrived&&arrived>rolled)?(arrived-rolled)/60000:null;
+    var drive=d2d!==null?d2d-min:null,mph=(drive!==null&&drive>0)?miles/(drive/60):null;
+    var prev=RT.CUM[k-1]||0,stints=[];
+    ch.forEach(function(c){var l=locate({lat:+c.lat,lng:+c.lng});if(!l)return;stints.push(l.miles-prev);prev=l.miles;});
+    var longest=stints.length?Math.max.apply(null,stints):null,whmi=(kwh>0&&miles>0)?kwh/miles*1000:null;
+    return{d:d,stop:st,rolled:rolled,arrived:arrived,miles:miles,ch:ch,kwh:kwh,cost:cost,chMin:min,d2d:d2d,drive:drive,mph:mph,longest:longest,whmi:whmi};
+  }
+  function tripStats(){
+    var days=[],d;for(d=1;d<=RT.DAYS;d++){var r=dayStats(d);if(r)days.push(r);}
+    var done=tripProgress().miles,left=Math.max(0,RT.TOTAL-done);
+    var driveMin=0,chMinTot=0,d2dMin=0,milesD2d=0,anyD2d=false;
+    days.forEach(function(r){chMinTot+=r.chMin;if(r.d2d!==null){anyD2d=true;driveMin+=Math.max(0,r.drive);d2dMin+=r.d2d;milesD2d+=r.miles;}});
+    var real=realCharges(),kwh=0,cost=0;real.forEach(function(c){kwh+=c.kwh;cost+=c.cost||0;});
+    var perKwh=kwh>0?cost/kwh:null,perMi=(done>0&&cost>0)?cost/done:null,whmi=(kwh>0&&done>0)?kwh/done*1000:null;
+    var proj=(whmi!==null&&perKwh!==null)?left*whmi/1000*perKwh:null;
+    var rated=real.map(function(c){return{c:c,r:chgRate(c)||null};}).filter(function(x){return x.r!==null;}).sort(function(a,b){return a.r-b.r;});
+    var fast=real.filter(function(c){return c.min>0;}).map(function(c){return{c:c,v:c.kwh/c.min};}).sort(function(a,b){return b.v-a.v;})[0]||null;
+    var elapsed=days.length?Math.max.apply(null,days.map(function(r){return r.d;})):0;
+    var d2dMph=d2dMin>0?milesD2d/(d2dMin/60):null,remDays=Math.max(1,RT.DAYS-elapsed),eta=null,hrsPerDay=null;
+    if(d2dMph&&left>0){
+      hrsPerDay=(left/d2dMph)/remDays;
+      var rolls=days.filter(function(r){return r.rolled;}).map(function(r){return r.rolled.getHours()*60+r.rolled.getMinutes();});
+      if(rolls.length){var rollMin=rolls.reduce(function(a,b){return a+b;},0)/rolls.length,last=addDays(departDate(),RT.DAYS-1);eta=new Date(last.getFullYear(),last.getMonth(),last.getDate(),0,Math.round(rollMin+hrsPerDay*60));}
+    }
+    return{days:days,done:done,left:left,pct:RT.TOTAL?done/RT.TOTAL*100:0,elapsed:elapsed,driveMin:anyD2d?driveMin:null,chMin:chMinTot,kwh:kwh,cost:cost,perKwh:perKwh,perMi:perMi,whmi:whmi,proj:proj,
+      movingMph:(anyD2d&&driveMin>0)?milesD2d/(driveMin/60):null,best:rated[0]||null,worst:rated.length>1?rated[rated.length-1]:null,rated:rated,fast:fast,eta:eta,hrsPerDay:hrsPerDay,d2dMph:d2dMph,remDays:remDays};
+  }
+  function dayProg(d){   /* planned miles, miles so far and flags for one day */
+    var t=T(),st=stopForDay(d);
+    if(!st)return{st:null,k:-1,mi:0,so:0,done:false,started:false};
+    var k=RT.stops.indexOf(st),pr=tripProgress(),mi=+st.mi||0,so=Math.max(0,Math.min(mi,pr.miles-(RT.CUM[k-1]||0))),done=!!t.log.arrived[st.id];
+    return{st:st,k:k,mi:mi,so:done?mi:so,done:done,started:done||so>0||!!t.log.rolled[st.id]};
+  }
+  function scopeStats(){   /* the numbers every card reads, for the page-wide scope */
+    var t=tripStats(),sd=scopeDay(),o={t:t,day:sd,sessions:[],d2d:null,drive:null,mph:null,chMin:0,kwh:0,cost:0,miles:0,rem:0};
+    if(sd===null){
+      o.label="Whole trip";o.sessions=realCharges();o.miles=t.done;o.rem=t.left;o.kwh=t.kwh;o.cost=t.cost;o.mph=t.movingMph;
+      var d2d=0,dr=0,any=false;t.days.forEach(function(r){o.chMin+=r.chMin;if(r.d2d!==null){any=true;d2d+=r.d2d;dr+=Math.max(0,r.drive);}});
+      if(any){o.d2d=d2d;o.drive=dr;}
+    }else{
+      var ds=dayStats(sd),dp=dayProg(sd);o.label="Day "+sd;o.ds=ds;o.miles=dp.so;o.rem=dp.mi-dp.so;o.leg=dp;
+      if(ds){o.sessions=ds.ch.filter(function(c){return c.kwh>0;});o.kwh=ds.kwh;o.cost=ds.cost;o.chMin=ds.chMin;o.d2d=ds.d2d;o.drive=ds.drive;o.mph=ds.mph;}
+    }
+    o.stops=o.sessions.length;o.perKwh=o.kwh>0?o.cost/o.kwh:null;o.perMi=(o.miles>0&&o.cost>0)?o.cost/o.miles:null;
+    o.avgMin=o.stops?o.chMin/o.stops:null;o.longest=o.sessions.reduce(function(a,c){return (!a||(c.min||0)>(a.min||0))?c:a;},null);
+    o.pct=RT.TOTAL?o.miles/RT.TOTAL*100:0;o.share=(o.d2d>0)?o.chMin/o.d2d*100:null;
+    return o;
+  }
+  function kpi(cls,t,n,badge,bcls,s){return '<div class="kpi'+(cls?' '+cls:'')+'"><div class="t">'+t+'</div><div class="n">'+n+(badge?' <span class="d'+(bcls?' '+bcls:'')+'">'+badge+'</span>':'')+'</div><div class="s">'+s+'</div></div>';}
+  function mini(t,n,badge,bcls){return '<div><div class="t">'+t+'</div><div class="n">'+n+(badge?' <span class="d'+(bcls?' '+bcls:'')+'">'+badge+'</span>':'')+'</div></div>';}
+  function pillSel(label,name,opts,val){return '<label class="pill">'+label+' <i>⌄</i><select data-sel="'+name+'" aria-label="'+esc(label)+'">'+opts.map(function(o){return '<option value="'+o[0]+'"'+(String(o[0])===String(val)?' selected':'')+'>'+esc(o[1])+'</option>';}).join("")+'</select></label>';}
+  function card(title,pill,body){var c=el("div","card");c.innerHTML='<h2>'+title+(pill||'')+'</h2>'+body;return c;}
+  var SORTS=[{k:"time",l:"time",dir:"asc",f:function(c){return chgTs(c);}},{k:"kwh",l:"kWh",dir:"desc",f:function(c){return c.kwh;}},{k:"rate",l:"rate",dir:"asc",f:function(c){return chgRate(c);}},{k:"min",l:"minutes",dir:"desc",f:function(c){return c.min||0;}},{k:"cost",l:"cost",dir:"desc",f:function(c){return c.cost||0;}}];
+  function renderStats(){
+    renderTripProg();
+    var w=$("tripStats");if(!w)return;w.innerHTML="";
+    var t0=T();if(!t0)return;
+    var S2=stS(),o=scopeStats(),t=o.t,sd=o.day,cur=Math.max(1,Math.min(RT.DAYS,Math.max(t.elapsed,todayDay()||1))),d;
+    var scopeOpts=[["trip","Whole trip"]];
+    for(d=1;d<=RT.DAYS;d++){var so=stopForDay(d);scopeOpts.push([d,"Day "+d+(so?" · "+(so.short||so.name):"")]);}
+    var filtOn=!S2.showPlanned||S2.sessionsScope!=="scoped"||S2.costUnit!=="kwh";
+    w.appendChild(el("div","top",'<div><h1>Trip stats</h1><p class="sub">'+esc(t0.name)+' · Day '+cur+' of '+RT.DAYS+(sd?' · showing Day '+sd:'')+'</p></div>'+
+      '<div class="pills">'+pillSel(sd===null?"Whole trip":"Day "+sd,"scope",scopeOpts,S2.scope)+'<button class="pill" type="button" data-act="export">⇧ Export</button><button class="pill'+(filtOn?' on':'')+'" type="button" data-act="filter">⚙ Filter</button></div>'));
+    /* KPI tiles — every one reads "—" until its inputs exist */
+    var costBadge=S2.costUnit==="mi"?dash2(o.perMi,function(v){return "$"+v.toFixed(2)+"/mi";}):dash2(o.perKwh,function(v){return "$"+v.toFixed(2)+"/kWh";});
+    w.appendChild(el("div","kpis",
+      kpi("acc","Miles driven",o.miles>0?num(o.miles):"—",o.miles>0?"↑ "+Math.round(o.pct)+"%":"",null,(sd===null||!o.leg||!o.leg.st)?"Remaining: <b>"+num(o.rem)+" mi</b>":"Leg: <b>"+num(o.leg.mi)+" mi</b> to "+esc(o.leg.st.short||o.leg.st.name))+
+      kpi(null,"Charging spend",o.cost>0?money2(o.cost):"—",o.cost>0?costBadge:"",null,sd===null?"Projected to the end: <b>"+dash2(t.proj,function(v){return "~"+money(v);})+"</b>":"Trip to date: <b>"+(t.cost>0?money2(t.cost):"—")+"</b>")+
+      kpi(null,"Time on the road",hm(o.d2d),o.share!==null?Math.round(o.share)+"% charging":"","bad","Driving: <b>"+hm(o.drive)+"</b>"+(o.mph?" · "+Math.round(o.mph)+" mph":""))+
+      kpi(null,"Time at chargers",o.stops?hm(o.chMin):"—",o.avgMin!==null?"avg "+Math.round(o.avgMin)+"m":"",null,o.longest?"Longest: <b>"+hm(o.longest.min)+"</b> "+esc(chgShort(o.longest,o.sessions))+" · "+o.stops+" stop"+(o.stops===1?"":"s"):"No sessions yet")));
+    if(!hasRoute()){w.appendChild(el("div","card",'<h2>Miles per day</h2><div class="empty">Add stops to this trip and the daily cards fill in.</div>'));return;}
+    /* Miles per day — metric pill cycles Miles → Hours → Spend; a row tap fills the detail panel */
+    var sp=spendTotals(),SPC={charging:"#E82127",hotel:"#AF52DE",groceries:"#30B0C7",kane:"#34C759",food:"#FF9500",tolls:"#8E8E93",parking:"#8E8E93",misc:"#8E8E93"},ORDER=["charging","hotel","groceries","kane","food","tolls","parking","misc"];
+    var perKwhEst=t.perKwh||KWH_FALLBACK,whEst=t.whmi?t.whmi/1000:whPerMi(),rows=[],ent=(T().spend.entries||[]);
+    for(d=1;d<=RT.DAYS;d++){
+      var dp=dayProg(d),ds=dayStats(d),r={d:d,dp:dp,ds:ds,dt:addDays(departDate(),d-1)};
+      r.hrs=(ds&&ds.d2d!==null)?{min:ds.d2d,drive:Math.max(0,ds.drive),ch:ds.chMin,est:false}:{min:(t.d2dMph&&dp.mi)?dp.mi/t.d2dMph*60:null,est:true};
+      var act={},tot=0,has=false;
+      ent.forEach(function(e){if(e.day===d&&!e.planned){act[e.cat]=(act[e.cat]||0)+e.amount;tot+=e.amount;has=true;}});
+      if(has&&d<=cur)r.sp={act:act,tot:tot,est:false};
+      else{var plan=0;ent.forEach(function(e){if(e.day===d&&e.planned)plan+=e.amount;});r.sp={tot:plan+dp.mi*whEst*perKwhEst+sp.foodDay,est:true};}
+      if(S2.showPlanned||dp.started)rows.push(r);
+    }
+    var sel=STV.sel||sd||Math.max(1,rows.filter(function(r){return r.dp.done;}).map(function(r){return r.d;}).pop()||1),M=S2.milesMetric,ML={miles:"Miles",hours:"Hours",spend:"Spend"};
+    var maxMi=Math.max.apply(null,rows.map(function(r){return r.dp.mi;}).concat([1])),maxMin=Math.max.apply(null,rows.map(function(r){return r.hrs.min||0;}).concat([1])),maxS=Math.max.apply(null,rows.map(function(r){return r.sp.tot;}).concat([1]));
+    var hb=rows.map(function(r){var bar,val;
+      if(M==="hours"){var h=r.hrs;if(!h.est){var a=h.drive/maxMin*100,b=h.ch/maxMin*100;bar='<i class="on seg" style="width:'+a.toFixed(1)+'%"></i><i class="r seg" style="left:'+a.toFixed(1)+'%;width:'+b.toFixed(1)+'%"></i>';val='<div class="v">'+hm(h.min)+'</div>';}
+        else{bar='<i style="width:'+(h.min?(h.min/maxMin*100).toFixed(1):0)+'%"></i>';val='<div class="v g">'+(h.min?"~"+halfH(h.min/60):"—")+'</div>';}}
+      else if(M==="spend"){var x=r.sp;if(!x.est){var L=0;bar=ORDER.filter(function(k){return x.act[k];}).map(function(k){var wd=x.act[k]/maxS*100,s='<i class="seg" style="left:'+L.toFixed(1)+'%;width:'+wd.toFixed(1)+'%;background:'+SPC[k]+'"></i>';L+=wd;return s;}).join("");val='<div class="v">'+money(x.tot)+'</div>';}
+        else{bar='<i style="width:'+(x.tot/maxS*100).toFixed(1)+'%"></i>';val='<div class="v g">~'+money(x.tot)+'</div>';}}
+      else{var p=r.dp;if(p.done||p.so>0){bar='<i class="on" style="width:'+(p.so/maxMi*100).toFixed(1)+'%"></i>';val='<div class="v">'+num(p.so)+'</div>';}
+        else{bar='<i style="width:'+(p.mi/maxMi*100).toFixed(1)+'%"></i>';val='<div class="v g">~'+num(p.mi)+'</div>';}}
+      return '<div class="row'+(r.d===sel?' sel':'')+'" data-d="'+r.d+'" role="button" tabindex="0"><div class="l">'+WD3[r.dt.getDay()]+'<small>Day '+r.d+(r.dp.st?' · '+esc(r.dp.st.short||r.dp.st.name):'')+'</small></div><div class="tr">'+bar+'</div>'+val+'</div>';}).join("");
+    var sr=rows.filter(function(r){return r.d===sel;})[0],tip='';
+    if(sr){var sds=sr.ds,dn=sr.dp.done||sr.dp.so>0;
+      tip='<div class="tip"><b>'+dayTitle(sr.d)+'</b>'+
+        '<div><span><i class="b"></i>Miles</span><span>'+(dn?num(sr.dp.so):"~"+num(sr.dp.mi))+'</span></div>'+
+        '<div><span><i class="r"></i>Charging</span><span>'+((sds&&sds.ch.length)?hm(sds.chMin)+" · "+money2(sds.cost):"—")+'</span></div>'+
+        '<div><span><i></i>Door to door</span><span>'+(sr.hrs.est?(sr.hrs.min?"~"+halfH(sr.hrs.min/60):"—"):hm(sr.hrs.min))+'</span></div>'+
+        '<div><span><i></i>Spend</span><span>'+(sr.sp.est?"~":"")+money(sr.sp.tot)+'</span></div></div>';}
+    w.appendChild(card("Miles per day",'<button class="pill" type="button" data-act="metric">'+ML[M]+' <i>⌄</i></button>',(rows.length?'<div class="hb">'+hb+'</div>':'<div class="empty">No driven days yet — turn on planned days in Filter.</div>')+tip));
+    /* Minutes at each charger — its own day picker */
+    var lastChg=t.days.filter(function(r){return r.ch.length;}).map(function(r){return r.d;}).pop()||1,cd=S2.chgDay?Math.max(1,Math.min(RT.DAYS,+S2.chgDay)):(sd||lastChg),cds=dayStats(cd),cs=cds?cds.ch.filter(function(c){return c.min>0;}):[];
+    var dayOpts=[];for(d=1;d<=RT.DAYS;d++){var sfd=stopForDay(d);dayOpts.push([d,"Day "+d+(sfd?" · "+(sfd.short||sfd.name):"")]);}
+    var maxC=Math.max.apply(null,cs.map(function(c){return c.min;}).concat([1])),cmin=0;cs.forEach(function(c){cmin+=c.min;});
+    var cm=cds?cds.miles:0,cshare=(cds&&cds.d2d>0)?cmin/cds.d2d*100:null;
+    w.appendChild(card("Minutes at each charger",pillSel("Day "+cd,"chgDay",dayOpts,cd),
+      (cs.length?'<div class="hb">'+cs.map(function(c){var ratio=c.min/maxC;return '<div class="l">'+esc(chgTiny(c,cs))+'<small>'+fmtTime(chgTs(c))+'</small></div><div class="tr"><i class="r" style="width:'+(ratio*100).toFixed(0)+'%;opacity:'+Math.max(.35,ratio).toFixed(2)+'"></i></div><div class="v">'+hm(c.min)+'</div>';}).join("")+'</div>':'<div class="empty">No sessions logged for Day '+cd+'</div>')+
+      '<div class="mini three">'+mini("Charging share of day",dash2(cshare,function(v){return Math.round(v)+"%";}),cshare!==null?hm(cmin)+" / "+hm(cds.d2d):"")+mini("Minutes per 100 mi",(cs.length&&cm)?String(Math.round(cmin/cm*100)):"—",cs.length?"min":"","k")+mini("Stops per 100 mi",(cs.length&&cm)?(cs.length/cm*100).toFixed(1):"—",cs.length&&cm?"every ~"+num(cm/cs.length)+" mi":"","k")+'</div>'));
+    /* Charging speed — pill toggles kWh/min ↔ $/min */
+    var U=S2.speedUnit,sv=o.sessions.filter(function(c){return c.min>0;}).map(function(c){return{c:c,v:U==="usd"?(c.cost||0)/c.min:c.kwh/c.min};}).sort(function(a,b){return b.v-a.v;}),maxV=sv.length?sv[0].v:1;
+    var note=sv.length?(U==="usd"?"Costliest minute was "+esc(chgShort(sv[0].c,o.sessions))+" at $"+sv[0].v.toFixed(2)+"/min — a slow plug at a high rate hurts twice.":"Fastest plug was "+esc(chgShort(sv[0].c,o.sessions))+" at "+sv[0].v.toFixed(2)+" kWh/min. Slower sessions = arrived with more battery."):"Log a charging session to rank the plugs.";
+    w.appendChild(card("Charging speed",'<button class="pill" type="button" data-act="unit">'+(U==="usd"?"$ / min":"kWh / min")+'</button>',
+      (sv.length?'<div class="spd">'+sv.map(function(x){return '<div class="r"><span>'+esc(chgTiny(x.c,o.sessions))+'</span><div class="bar"><i style="width:'+(maxV?x.v/maxV*100:0).toFixed(0)+'%"></i></div><b>'+(U==="usd"?"$"+x.v.toFixed(2):x.v.toFixed(2))+'</b></div>';}).join("")+'</div>':'<div class="empty">No sessions in this scope</div>')+'<p class="note">'+note+'</p>'));
+    /* Charging sessions table — sortable */
+    var srt=SORTS.filter(function(x){return x.k===S2.sort;})[0]||SORTS[0],list=(S2.sessionsScope==="all"?realCharges():o.sessions).slice();
+    list.sort(function(a,b){var x=srt.f(a),y=srt.f(b);return srt.dir==="asc"?x-y:y-x;});
+    var ranked=list.map(chgRate).sort(function(a,b){return a-b;}),n=ranked.length,arrow=srt.dir==="asc"?"↑":"↓";
+    function tagCls(c){var i=ranked.indexOf(chgRate(c));return n<2?"":(i<n/3?"":(i>=n*2/3?" r":" o"));}
+    var TH=[["Stop",null],["Day · time","time"],["kWh","kwh"],["Rate","rate"],["Minutes","min"],["kWh/min",null],["Cost","cost"]];
+    w.appendChild(card("Charging sessions",'<button class="pill" type="button" data-act="sort">↕ Sort by '+srt.l+' '+arrow+'</button>',
+      list.length?'<div class="tw"><table><thead><tr>'+TH.map(function(h){return '<th'+(h[1]===srt.k?' class="on"':'')+'>'+h[0]+(h[1]===srt.k?' '+arrow:'')+'</th>';}).join("")+'</tr></thead><tbody>'+
+      list.map(function(c){var dt=parseYMD(c.date);return '<tr><td><span class="st"><i>⚡︎</i>'+esc(chgPlace(c))+'</span></td><td>'+WD3[dt.getDay()]+' · '+fmtTime(chgTs(c))+'</td><td>'+c.kwh.toFixed(1)+'</td><td><span class="tag'+tagCls(c)+'">$'+chgRate(c).toFixed(2)+'</span></td><td>'+(c.min||"—")+'</td><td>'+(c.min>0?(c.kwh/c.min).toFixed(2):"—")+'</td><td>'+money2(c.cost||0)+'</td></tr>';}).join("")+'</tbody></table></div>':'<div class="empty">No sessions '+(S2.sessionsScope==="all"?"logged yet":"in this scope — Filter › Sessions: all days")+'</div>'));
+  }
+  /* ---------- TRIP PROGRESS strip under the map: route by cumulative miles, fill to the current position, stops as circles, three tiles. The flag cycles the metric (trip.stats.arcMetric) ---------- */
+  function routePos(){   /* live fix if tracking, else the furthest of: Arrived stops, logged (non-planned) charger positions */
+    var pr=tripProgress();if(pr.live)return pr.miles;var m=pr.miles;
+    chargesOf().forEach(function(c){if(c.planned||!c.date||!isFinite(+c.lat))return;var l=locate({lat:+c.lat,lng:+c.lng});if(l&&l.miles>m&&l.miles<=RT.TOTAL)m=l.miles;});
+    return m;
+  }
+  function renderTripProg(){
+    var w=$("tripProg"),t0=T();if(!w||!t0)return;
+    var t=tripStats(),sp=spendProj(),S2=stS(),pos=Math.max(0,Math.min(RT.TOTAL,routePos())),pct=RT.TOTAL?pos/RT.TOTAL*100:0;
+    var cur=Math.max(1,Math.min(RT.DAYS,Math.max(t.elapsed,todayDay()||1)));
+    var head='<div class="tph"><h2>Trip progress</h2><span class="tpill">'+num(RT.TOTAL)+' mi · Day '+cur+' of '+RT.DAYS+'</span></div>';
+    var d2d=0,nd=0;t.days.forEach(function(r){if(r.d2d!==null){d2d+=r.d2d;nd++;}});
+    var stops=realCharges().length;
+    var tiles='<div class="tptiles"><div><div class="tt">Remaining</div><div class="tn">'+num(Math.max(0,RT.TOTAL-pos))+'<small>mi</small></div></div>'+
+      '<div><div class="tt">Charging</div><div class="tn"><span class="bolt">⚡︎</span>'+(stops?hm(t.chMin):"—")+'<small>'+stops+' stop'+(stops===1?"":"s")+'</small></div></div>'+
+      '<div><div class="tt">On the road</div><div class="tn">'+(nd?hm(d2d):"—")+'<small>'+nd+' day'+(nd===1?"":"s")+'</small></div></div></div>';
+    if(!hasRoute()){
+      w.innerHTML=head+'<div class="tpw"><div class="tptrack"><i class="fill" style="width:0%"></i><span class="tpring" style="left:0%"></span></div><div class="tpnames"></div></div>'+tiles;
+      return;
+    }
+    var daysDone=RT.stops.filter(function(s,i){return i>0&&t0.log.arrived[s.id];}).length,flag;
+    if(S2.arcMetric==="days")flag=daysDone+" of "+RT.DAYS+" days · "+Math.round(daysDone/RT.DAYS*100)+"%";
+    else if(S2.arcMetric==="spend")flag=money(sp.soFar)+" of ~"+money(sp.proj)+" · "+(sp.proj>0?Math.round(sp.soFar/sp.proj*100):0)+"%";
+    else flag=num(pos)+" mi · "+Math.round(pct)+"%";
+    var next=-1,i;for(i=1;i<RT.stops.length;i++){if(RT.CUM[i]>pos+0.5){next=i;break;}}
+    var X=function(i){return (i===0?0:RT.CUM[i]/RT.TOTAL*100);},px=function(v){return v.toFixed(2)+"%";};
+    var dots=RT.stops.map(function(s,i){var on=i===0||RT.CUM[i]<=pos+0.5,L=i===0?"5px":(i===RT.stops.length-1?"calc(100% - 5px)":px(X(i)));return '<b class="tps '+(on?"on":"up")+'" style="left:'+L+'"></b>';}).join("");   /* end dots sit inside the rounded track */
+    var names=[],dep=departDate(),first=RT.stops[0],last=RT.stops[RT.stops.length-1];
+    var r1=RT.stops[1]&&t0.log.rolled[RT.stops[1].id]?parseLocalISO(t0.log.rolled[RT.stops[1].id]):null;
+    names.push('<div class="tpn first" style="left:0">'+esc(first.short||first.name)+'<small>'+WD3[dep.getDay()]+(r1?" · "+fmtTime(r1):" "+fmtShort(dep))+'</small></div>');
+    RT.stops.forEach(function(s,i){if(i===0||i===RT.stops.length-1)return;
+      var passed=RT.CUM[i]<=pos+0.5,isNext=i===next,show=passed||isNext||s.home;if(!show)return;
+      var sub=isNext?"next · "+num(RT.CUM[i]-pos)+" mi":"Day "+(RT.OFF[i]+1);
+      names.push('<div class="tpn'+(isNext?" next":" opt")+'" style="left:'+px(X(i))+'">'+esc(s.short||s.name)+'<small>'+sub+'</small></div>');});
+    var endNext=next===RT.stops.length-1;
+    names.push('<div class="tpn last'+(endNext?" next":"")+'" style="left:100%">'+esc(last.short||last.name)+'<small>'+(pos>=RT.TOTAL-0.5?"arrived":(t.eta?"ETA "+WD3[t.eta.getDay()]+" "+fmtTime(t.eta):(endNext?"next · "+num(RT.TOTAL-pos)+" mi":"ETA —")))+'</small></div>');
+    w.innerHTML=head+
+      '<div class="tpw"><div class="tptrack"><i class="fill" style="width:'+px(pct)+'"></i>'+dots+'<span class="tpring" style="left:'+px(pct)+'"></span>'+
+      '<button class="tpflag" type="button" aria-label="Change progress metric" style="left:clamp(64px,'+px(pct)+',calc(100% - 64px))">'+flag+'</button></div>'+
+      '<div class="tpnames">'+names.join("")+'</div></div>'+tiles;
+  }
+  (function(){var w=$("tripProg");if(!w)return;
+    w.addEventListener("click",function(e){if(!e.target.closest(".tpflag"))return;var s=stS(),L=["miles","days","spend"];stSet("arcMetric",L[(L.indexOf(s.arcMetric)+1)%L.length]);});})();
+  function statsText(){   /* plain-text summary of the current scope for Export */
+    var o=scopeStats(),t=o.t,t0=T(),L=[];
+    L.push((t0?t0.name:"Trip")+" · Trip stats · "+(o.day?dayTitle(o.day):"Whole trip · Day "+Math.max(1,t.elapsed)+" of "+RT.DAYS));
+    L.push("Miles "+(o.miles>0?num(o.miles):"—")+(o.day?"":" of "+num(RT.TOTAL))+" · "+Math.round(o.pct)+"% of the trip");
+    L.push("Door to door "+hm(o.d2d)+" · Driving "+hm(o.drive)+" · Charging "+(o.stops?hm(o.chMin):"—"));
+    L.push("Stops "+o.stops+" · "+(Math.round(o.kwh*10)/10)+" kWh · "+money2(o.cost)+" · "+dash2(o.perKwh,function(v){return "$"+v.toFixed(2)+"/kWh";}));
+    return L.join("\n");
+  }
+  function showExportModal(txt,title){
+    var back=el("div","modal-back",'<div class="modal"><h2>'+esc(title||"Export")+'</h2><textarea readonly></textarea><div class="mbtns"><button class="btn go" type="button" data-close="1">Done</button></div></div>');
+    back.querySelector("textarea").value=txt;
+    back.addEventListener("click",function(e){if(e.target===back||e.target.getAttribute("data-close"))back.remove();});
+    document.body.appendChild(back);
+    var ta=back.querySelector("textarea");ta.focus();try{ta.setSelectionRange(0,txt.length);}catch(e){}
+  }
+  function exportStats(){
+    var txt=statsText();
+    function copy(){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){toast("Stats copied");},function(){showExportModal(txt,"Trip stats");});}else showExportModal(txt,"Trip stats");}
+    if(navigator.share){navigator.share({title:"Trip stats",text:txt}).catch(function(err){if(!(err&&err.name==="AbortError"))copy();});}else copy();
+  }
+  function openStatsFilter(){
+    function frow(k,l,s,on){return '<div class="frow"><div><div class="fl">'+l+'</div><div class="fs">'+s+'</div></div><button class="sw'+(on?' on':'')+'" type="button" role="switch" aria-checked="'+(on?'true':'false')+'" aria-label="'+esc(l)+'" data-f="'+k+'"><span class="knob"></span></button></div>';}
+    var s=stS();
+    var back=el("div","modal-back",'<div class="modal fsheet" id="statsFilter"><h2>Filter stats</h2>'+
+      frow("showPlanned","Show planned days","Future days in Miles per day, with ~ estimates",s.showPlanned)+
+      frow("sessionsScope","Sessions: all days","Off = the table follows the page scope",s.sessionsScope==="all")+
+      frow("costUnit","Spend per mile","Charging spend badge in $/mi instead of $/kWh",s.costUnit==="mi")+
+      '<div class="mbtns"><button class="btn go" type="button" data-close="1">Done</button></div></div>'),m=back.firstChild;
+    back.addEventListener("click",function(e){if(e.target===back||e.target.getAttribute("data-close"))back.remove();});
+    m.addEventListener("click",function(e){var b=e.target.closest("[data-f]");if(!b)return;var k=b.getAttribute("data-f"),on=!b.classList.contains("on");
+      stSet(k,k==="showPlanned"?on:(k==="sessionsScope"?(on?"all":"scoped"):(on?"mi":"kwh")));b.classList.toggle("on",on);b.setAttribute("aria-checked",on?"true":"false");});
+    document.body.appendChild(back);
+  }
+  (function(){   /* one delegated listener: the section re-renders on every change */
+    var w=$("tripStats");if(!w)return;
+    function cyc(k,list){var s=stS(),i=list.indexOf(s[k]);stSet(k,list[(i+1)%list.length]);}
+    w.addEventListener("click",function(e){
+      var b=e.target.closest("[data-act]");
+      if(b){var a=b.getAttribute("data-act");
+        if(a==="export")exportStats();else if(a==="filter")openStatsFilter();
+        else if(a==="metric")cyc("milesMetric",["miles","hours","spend"]);
+        else if(a==="unit")cyc("speedUnit",["kwh","usd"]);else if(a==="sort")cyc("sort",SORTS.map(function(x){return x.k;}));
+        return;}
+      var r=e.target.closest(".row[data-d]");if(r){STV.sel=+r.getAttribute("data-d");renderStats();}
+    });
+    w.addEventListener("keydown",function(e){var r=e.target.closest(".row[data-d]");if(r&&(e.key==="Enter"||e.key===" ")){e.preventDefault();STV.sel=+r.getAttribute("data-d");renderStats();}});
+    w.addEventListener("change",function(e){var s=e.target.closest("select[data-sel]");if(!s)return;
+      var t=T();if(!t)return;
+      if(s.getAttribute("data-sel")==="scope"){STV.sel=null;t.stats=t.stats||{};t.stats.chgDay=null;stSet("scope",s.value==="trip"?"trip":+s.value);}
+      else stSet("chgDay",+s.value);});
+  })();
+
+  /* ---------- live tracking — never blocks the UI ---------- */
+  function setTrackStatus(t){$("trackStatus").textContent=t;}
+  function onFix(p){
+    var t=T();if(!t)return;
+    tripPos={lat:p.coords.latitude,lng:p.coords.longitude};
+    var changed=false;
+    RT.stops.forEach(function(s){if(!t.log.arrived[s.id]&&hav(tripPos,{lat:+s.lat,lng:+s.lng})<5){t.log.arrived[s.id]=true;changed=true;}});
+    if(changed){save(state);refreshStatus();renderTripStops();}
+    var now=new Date();
+    setTrackStatus("Live — "+((now.getHours()+11)%12+1)+":"+("0"+now.getMinutes()).slice(-2)+(now.getHours()<12?" am":" pm"));
+    updateTripMap();
+  }
+  function onErr(e){
+    tripPos=null;
+    setTrackStatus(e&&e.code===1?"Location unavailable — permission denied":"Location unavailable — no fix yet");
+    updateTripMap();
+  }
+  function startTrack(){
+    if(!navigator.geolocation){setTrackStatus("Location unavailable on this device");return;}
+    if(tripWatch!==null)return;
+    setTrackStatus("Waiting for a fix…");
+    try{tripWatch=navigator.geolocation.watchPosition(onFix,onErr,{enableHighAccuracy:false,maximumAge:30000,timeout:20000});}
+    catch(err){tripWatch=null;setTrackStatus("Location unavailable");}
+  }
+  function stopTrack(){
+    if(tripWatch!==null&&navigator.geolocation){try{navigator.geolocation.clearWatch(tripWatch);}catch(err){}}
+    tripWatch=null;tripPos=null;
+    setTrackStatus("Off — progress from Arrived checks");
+    updateTripMap();
+  }
+  function syncTrackSw(){
+    var t=T(),sw=$("trackSw"),on=!!(t&&t.ui.tracking);
+    sw.classList.toggle("on",on);sw.setAttribute("aria-checked",on?"true":"false");
+  }
+  $("trackSw").addEventListener("click",function(){
+    var t=T();if(!t)return;
+    t.ui.tracking=!t.ui.tracking;save(state);syncTrackSw();
+    if(t.ui.tracking)startTrack();else stopTrack();
+  });
+
+  /* ---------- PACK: base template + type templates + this trip's own items ---------- */
+  var BEFORE_LEAVE=[
+    {id:"bl-charger",t:"Mobile charger + adapters in the car"},
+    {id:"bl-walkthrough",t:"Walk-through of the house — every room, closets, garage"},
+    {id:"bl-garbage",t:"Take the garbage + recycling out"},
+    {id:"bl-eco",t:"Set the house to Eco (thermostat)"},
+    {id:"bl-waterheater",t:"Water heater to vacation mode"},
+    {id:"bl-fridge",t:"Fridge emptied · perishables gone"},
+    {id:"bl-locks",t:"Windows locked · doors locked · garage closed"},
+    {id:"bl-lights",t:"Lights off · unplug what's not needed"},
+    {id:"bl-kane",t:"Kane: fed, walked, kit within reach"}
+  ];
+  var packFilter="all",packCards=[];
+  function packItems(){   /* Build 7 fills templates; until then this is just the trip's own list */
+    var t=T();if(!t)return [];
+    var out=(state.templates.base||[]).slice();
+    (t.types||[]).forEach(function(k){(state.templates.byType[k]||[]).forEach(function(i){out.push(i);});});
+    (t.pack.items||[]).forEach(function(i){out.push(i);});
+    return out;
+  }
+  function packTotals(){
+    var t=T(),items=packItems(),tot=items.length,pk=0;
+    items.forEach(function(i){if(t.pack.packed[i.id])pk++;});
+    return{tot:tot,pk:pk};
+  }
+  function refreshPackCounts(){
+    var x=packTotals();
+    $("packNum").textContent=x.pk+" of "+x.tot+" packed";
+    $("packFill").style.width=(x.tot?x.pk/x.tot*100:0)+"%";
+    packCards.forEach(function(pc){
+      var n=pc.items.filter(function(i){return T().pack.packed[i.id];}).length;
+      pc.m.textContent=n+"/"+pc.items.length;
+    });
+  }
+  function renderBeforeLeave(){
+    var t=T(),wrap=$("beforeLeave");if(!t||!wrap)return;wrap.innerHTML="";
+    var custom=t.pack.beforeLeave||[];
+    var ids=BEFORE_LEAVE.map(function(i){return i.id;}).concat(custom.map(function(c){return c.id;}));
+    var pdone=ids.filter(function(id){return t.pack.packed[id];}).length;
+    var card=el("div","card"+(t.pack.collapsed["bl"]?" closed":""));
+    var head=el("div","sec-head");
+    head.setAttribute("role","button");head.setAttribute("tabindex","0");
+    head.innerHTML='<span class="t">Before I leave</span><span class="m">'+pdone+'/'+ids.length+' <span class="chev">▼</span></span>';
+    var togC=function(){t.pack.collapsed["bl"]=!t.pack.collapsed["bl"];save(state);renderBeforeLeave();};
+    head.addEventListener("click",togC);
+    head.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();togC();}});
+    card.appendChild(head);
+    card.appendChild(el("div","sec-note","LAST MORNING — BEFORE THE DOOR LOCKS"));
+    var body=el("div","sec-body");
+    function addRow(it,isCustom){
+      var row=el("div","check"+(t.pack.packed[it.id]?" on":""),
+        '<span class="ring">✓</span><span><span class="ct">'+esc(it.t)+'</span></span>'+(isCustom?'<button class="xdel" type="button" aria-label="Delete">×</button>':''));
+      row.setAttribute("role","checkbox");row.setAttribute("tabindex","0");
+      row.setAttribute("aria-checked",t.pack.packed[it.id]?"true":"false");
+      var tog=function(){t.pack.packed[it.id]=!t.pack.packed[it.id];save(state);renderBeforeLeave();};
+      row.addEventListener("click",tog);
+      row.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();tog();}});
+      if(isCustom)row.querySelector(".xdel").addEventListener("click",function(e){
+        e.stopPropagation();
+        t.pack.beforeLeave=(t.pack.beforeLeave||[]).filter(function(c){return c.id!==it.id;});
+        delete t.pack.packed[it.id];save(state);renderBeforeLeave();
+      });
+      body.appendChild(row);
+    }
+    BEFORE_LEAVE.forEach(function(it){addRow(it,false);});
+    custom.forEach(function(it){addRow(it,true);});
+    var add=el("div","addrow",'<input type="text" placeholder="Add to Before I leave…" enterkeyhint="done">');
+    add.querySelector("input").addEventListener("keydown",function(e){
+      if(e.key==="Enter"&&this.value.trim()){
+        t.pack.beforeLeave=t.pack.beforeLeave||[];
+        t.pack.beforeLeave.push({id:"bl-ct-"+Date.now(),t:this.value.trim(),group:"Before I leave"});
+        save(state);renderBeforeLeave();
+      }
+    });
+    body.appendChild(add);
+    card.appendChild(body);
+    wrap.appendChild(card);
+  }
+  function renderPack(){
+    var t=T();if(!t)return;
+    renderBeforeLeave();
+    var wrap=$("packGroups");wrap.innerHTML="";packCards=[];
+    var items=packItems(),groups=[],byGroup={};
+    items.forEach(function(i){var g=i.group||"This trip";if(!byGroup[g]){byGroup[g]=[];groups.push(g);}byGroup[g].push(i);});
+    if(groups.indexOf("This trip")<0){groups.push("This trip");byGroup["This trip"]=[];}
+    groups.forEach(function(g){
+      var all=byGroup[g],show=all.filter(function(i){return packFilter!=="unpacked"||!t.pack.packed[i.id];});
+      var card=el("div","card"+(t.pack.collapsed["pk-"+g]?" closed":""));
+      var head=el("div","sec-head");
+      head.setAttribute("role","button");head.setAttribute("tabindex","0");
+      head.innerHTML='<span class="t">'+esc(g)+'</span><span class="m"></span>';
+      packCards.push({m:head.querySelector(".m"),items:all});
+      var togC=function(){t.pack.collapsed["pk-"+g]=!t.pack.collapsed["pk-"+g];save(state);renderPack();};
+      head.addEventListener("click",togC);
+      head.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();togC();}});
+      card.appendChild(head);
+      var body=el("div","sec-body");
+      if(!show.length)body.appendChild(el("div","empty",all.length?"Everything here is packed.":"Nothing in this list yet."));
+      show.forEach(function(it){
+        var row=el("div","pcheck"+(t.pack.packed[it.id]?" on":""),
+          '<span class="pring">✓</span><span class="pn"><span class="pt">'+esc(it.t)+'</span></span>');
+        var ring=row.querySelector(".pring");
+        ring.setAttribute("role","checkbox");ring.setAttribute("tabindex","0");
+        ring.setAttribute("aria-checked",t.pack.packed[it.id]?"true":"false");
+        ring.setAttribute("aria-label",it.t);
+        function togP(){
+          t.pack.packed[it.id]=!t.pack.packed[it.id];save(state);
+          row.classList.toggle("on",!!t.pack.packed[it.id]);
+          ring.setAttribute("aria-checked",t.pack.packed[it.id]?"true":"false");
+          refreshPackCounts();
+          if(packFilter==="unpacked"&&t.pack.packed[it.id])setTimeout(renderPack,240);
+        }
+        /* circle only: pressed on pointer-down, commit on release, >10px move = scroll cancel */
+        var pd=null;
+        ring.addEventListener("pointerdown",function(e){
+          if(e.isPrimary===false||e.button>0)return;
+          pd={x:e.clientX,y:e.clientY,id:e.pointerId};
+          try{ring.setPointerCapture(e.pointerId);}catch(err){}
+          ring.classList.add("pressed");
+        });
+        ring.addEventListener("pointermove",function(e){
+          if(!pd||e.pointerId!==pd.id)return;
+          if(Math.hypot(e.clientX-pd.x,e.clientY-pd.y)>10){pd=null;ring.classList.remove("pressed");}
+        });
+        ring.addEventListener("pointerup",function(e){
+          if(!pd||e.pointerId!==pd.id)return;
+          pd=null;ring.classList.remove("pressed");togP();
+        });
+        ring.addEventListener("pointercancel",function(){pd=null;ring.classList.remove("pressed");});
+        ring.addEventListener("keydown",function(e){
+          if(e.key==="Enter"||e.key===" "){e.preventDefault();ring.classList.add("pressed");setTimeout(function(){ring.classList.remove("pressed");},180);togP();}
+        });
+        body.appendChild(row);
+      });
+      if(g==="This trip"){
+        var add=el("div","addrow",'<input type="text" placeholder="Add an item for this trip…" enterkeyhint="done">');
+        add.querySelector("input").addEventListener("keydown",function(e){
+          if(e.key==="Enter"&&this.value.trim()){
+            t.pack.items.push({id:"pi-"+Date.now(),t:this.value.trim(),group:"This trip"});
+            save(state);renderPack();
+          }
+        });
+        body.appendChild(add);
+      }
+      card.appendChild(body);wrap.appendChild(card);
+    });
+    refreshPackCounts();
+  }
+  document.querySelectorAll("#packChips .chip").forEach(function(ch){
+    ch.addEventListener("click",function(){
+      packFilter=ch.getAttribute("data-f");
+      document.querySelectorAll("#packChips .chip").forEach(function(c){c.classList.toggle("on",c===ch);});
+      renderPack();
+    });
+  });
+
+  /* ---------- SPEND (layout per design/sf-move-spend-mockup.html) ---------- */
+  var CATS=[
+    {id:"charging", l:"Charging", c:"#007AFF", e:"⚡︎", t:"ch"},
+    {id:"hotel",    l:"Hotel",    c:"#AF52DE", e:"🏨", t:"ho"},
+    {id:"food",     l:"Food",     c:"#FF9500", e:"🍔", t:"fo"},
+    {id:"groceries",l:"Groceries",c:"#30B0C7", e:"🛒", t:"gr"},
+    {id:"kane",     l:"Kane",     c:"#34C759", e:"🐾", t:"ka"},
+    {id:"tolls",    l:"Tolls",    c:"#8E8E93", e:"🛣", t:"mi"},
+    {id:"parking",  l:"Parking",  c:"#8E8E93", e:"🅿︎", t:"mi"},
+    {id:"misc",     l:"Misc",     c:"#8E8E93", e:"·", t:"mi"}];
+  var CATMAP={};CATS.forEach(function(c){CATMAP[c.id]=c;});
+  var KWH_FALLBACK=0.40,FOOD_FALLBACK=45,MISC_TAIL=40;
+  function whPerMi(){var v=vehicleOf(T());return (+v.epaWhMi||270)/1000;}   /* kWh per mile, from the trip's vehicle */
+  function currentDay(){   /* live tracking → the leg being driven; else furthest Arrived stop; else the calendar */
+    var t=T();if(!t)return 0;
+    if(tripPos){var l=locate(tripPos);if(l&&RT.stops[l.leg+1])return RT.OFF[l.leg+1]+1;}
+    var last=0;RT.stops.forEach(function(s,i){if(t.log.arrived[s.id])last=i;});
+    if(last>0)return RT.OFF[last]+1;
+    return todayDay();
+  }
+  function spendTotals(){
+    var t=T(),soFar=0,byCat={},chAmt=0,chKwh=0,food=0,plHotelPet=0,plOther=0,nHotels=0;
+    ((t&&t.spend.entries)||[]).forEach(function(e){
+      if(e.planned){if(e.cat==="hotel"||e.cat==="kane"){plHotelPet+=e.amount;if(e.cat==="hotel")nHotels++;}else plOther+=e.amount;return;}
+      soFar+=e.amount;byCat[e.cat]=(byCat[e.cat]||0)+e.amount;
+      if(e.cat==="charging"){chAmt+=e.amount;chKwh+=(e.kwh||0);}
+      if(e.cat==="food"||e.cat==="groceries")food+=e.amount;
+    });
+    var miles=tripProgress().miles,remMiles=Math.max(0,RT.TOTAL-miles);
+    var dEl=Math.min(todayDay(),RT.DAYS),remDays=Math.max(0,RT.DAYS-dEl);
+    var hasKwh=chKwh>0,perKwh=hasKwh?chAmt/chKwh:KWH_FALLBACK;
+    var foodDay=(dEl>0&&food>0)?food/dEl:FOOD_FALLBACK;
+    var chEst=remMiles*whPerMi()*perKwh,foodEst=foodDay*remDays;
+    var tail=hasRoute()?MISC_TAIL:0;
+    var proj=soFar+plHotelPet+plOther+chEst+foodEst+tail;
+    return{soFar:soFar,byCat:byCat,miles:miles,perMile:miles>0?soFar/miles:null,perDay:dEl>0?soFar/dEl:null,perKwh:perKwh,hasKwh:hasKwh,
+      proj:proj,plHotelPet:plHotelPet,plOther:plOther,nHotels:nHotels,chEst:chEst,foodDay:foodDay,tail:tail,budget:(t&&t.spend.budget)||null};
+  }
+  function spendProj(){var t=spendTotals();return{soFar:t.soFar,proj:t.proj};}   /* the ONE projected total: the Spend hero and the progress flag both read this */
+  var LEGEND=[["charging","Charging"],["hotel","Hotels"],["food","Food"],["groceries","Groceries"],["kane","Kane"],["gray","Tolls · parking · misc"]];
+  function renderSpendTop(){
+    if(!T())return;
+    var t=spendTotals(),P=spendProj();
+    $("spSoFar").textContent=money(P.soFar);$("spProj").textContent=money(P.proj);$("spProj2").textContent=money(P.proj);
+    var sums={};LEGEND.forEach(function(L){sums[L[0]]=0;});
+    CATS.forEach(function(c){var v=t.byCat[c.id]||0;var key=(c.id==="tolls"||c.id==="parking"||c.id==="misc")?"gray":c.id;sums[key]+=v;});
+    var bar=$("spBar");bar.innerHTML="";
+    var scale=Math.max(t.soFar,t.budget||0)||1,over=!!(t.budget&&t.soFar>t.budget);
+    LEGEND.forEach(function(L){var v=sums[L[0]];if(!v)return;var s=el("i","seg");s.style.width=(v/scale*100)+"%";s.style.background=L[0]==="gray"?"#8E8E93":CATMAP[L[0]].c;bar.appendChild(s);});
+    if(over){var o=el("i","over");o.style.left=(t.budget/scale*100)+"%";o.style.width=((t.soFar-t.budget)/scale*100)+"%";bar.appendChild(o);}
+    var lg=$("spLegend");lg.innerHTML="";
+    LEGEND.forEach(function(L){lg.appendChild(el("div","lg",'<i style="background:'+(L[0]==="gray"?"#8E8E93":CATMAP[L[0]].c)+'"></i>'+L[1]+' <b>'+money(sums[L[0]])+'</b>'));});
+    $("kMile").textContent=t.perMile===null?"–":"$"+t.perMile.toFixed(2);
+    $("kDay").textContent=t.perDay===null?"–":money(t.perDay);
+    $("kMiles").textContent=Math.round(t.miles).toLocaleString();
+    $("budgetLink").textContent=t.budget?"Budget "+money(t.budget)+" · edit":"Set budget";
+    var bo=$("budgetOver");bo.textContent=t.budget?(over?"· "+money(t.soFar-t.budget)+" over":"· "+money(t.budget-t.soFar)+" left"):"";bo.classList.toggle("over",over);
+    renderTripProg();   /* seeds and edits land here first; refresh the strip from the same totals */
+    $("spEst").innerHTML="Built from what’s known: "+t.nHotels+" hotel"+(t.nHotels===1?"":"s")+" + pet fees (~"+money(t.plHotelPet)+"), charging estimated from remaining miles at "+
+      (t.hasKwh?"your running <b>$"+t.perKwh.toFixed(2)+"</b>/kWh":"<b>$"+t.perKwh.toFixed(2)+"</b>/kWh (estimate)")+" (~"+money(t.chEst)+"), food at "+
+      (t.foodDay===FOOD_FALLBACK?"an estimated":"your running daily average of")+" ~"+money(t.foodDay)+"/day, tolls + parking + misc (~"+money(t.plOther+t.tail)+"). Updates itself as real entries replace planned ones.";
+  }
+  $("budgetLink").addEventListener("click",function(ev){
+    ev.preventDefault();var t=T();if(!t)return;
+    var row=$("budgetRow");if(row.querySelector("input"))return;
+    var ed=el("span","sp-edit",'<input type="text" inputmode="decimal" placeholder="$"><button class="btn go" type="button">Save</button>');
+    var inp=ed.querySelector("input");inp.value=t.spend.budget||"";
+    ed.querySelector("button").addEventListener("click",function(){
+      var v=parseFloat(String(inp.value).replace(/[^0-9.]/g,""));
+      if(v>0)t.spend.budget=v;else delete t.spend.budget;
+      save(state);ed.remove();renderSpendTop();
+    });
+    row.appendChild(ed);inp.focus();
+  });
+  var spCat="charging";   /* last chosen category carries across cards */
+  function syncNow(){   /* default open = the current day; reasserts whenever the current day changes */
+    var t=T();if(!t)return;
+    var cd=currentDay(),ch=false;
+    if(t.ui.nowDay!==cd){t.ui.nowDay=cd;t.ui.openDay=cd;ch=true;}
+    if(typeof t.ui.openDay!=="number"){t.ui.openDay=cd;ch=true;}
+    if(ch)save(state);
+  }
+  function buildAddForm(d){
+    var f=el("div","addform",
+      '<div class="add"><input class="amt" type="text" inputmode="decimal" placeholder="$" aria-label="Amount"><input class="note" type="text" placeholder="What was it? (optional)" aria-label="Note"></div>'+
+      '<div class="chips2"></div><div class="kwh" hidden><input type="text" inputmode="decimal" placeholder="kWh charged" aria-label="kWh"></div>'+
+      '<button class="addbtn" type="button"></button>');
+    var chips=f.querySelector(".chips2"),kwh=f.querySelector(".kwh"),btn=f.querySelector(".addbtn");
+    function paint(){
+      chips.innerHTML="";
+      CATS.forEach(function(c){var b=el("button","chip2"+(spCat===c.id?" on":""),c.e+" "+c.l);b.type="button";b.addEventListener("click",function(){spCat=c.id;paint();});chips.appendChild(b);});
+      kwh.hidden=spCat!=="charging";
+    }
+    paint();
+    btn.textContent=d>0?"Add to "+dayLabel(d):"Add to Pre-trip";
+    btn.addEventListener("click",function(){
+      var t=T();if(!t)return;
+      var amtEl=f.querySelector(".amt"),amt=parseFloat(String(amtEl.value).replace(/[^0-9.]/g,""));
+      if(!(amt>0)){amtEl.focus();return;}
+      var s=stopForDay(d);
+      var e={id:"e"+Date.now(),amount:amt,cat:spCat,note:f.querySelector(".note").value.trim(),day:d,stopId:s?s.id:null,ts:Date.now(),planned:false,billsLater:false};
+      if(spCat==="charging"){var k=parseFloat(String(kwh.querySelector("input").value).replace(/[^0-9.]/g,""));if(k>0)e.kwh=k;}
+      t.spend.entries.push(e);save(state);
+      renderSpendTop();renderSpendDays(e.id);
+    });
+    return f;
+  }
+  function spendRow(e,isNew){
+    var c=CATMAP[e.cat]||CATMAP.misc,sub;
+    if(e.planned)sub=e.billsLater?"confirm from your statement — could be after arrival":"tap to confirm actual";
+    else sub=(e.cat==="charging"&&e.kwh?e.kwh+" kWh · ":"")+fmtTime(e.ts);
+    var row=el("div","sprow"+(e.planned?" plan":"")+(isNew?" new":""),
+      '<div class="ic '+c.t+'">'+c.e+'</div><div class="t"><div>'+esc(e.note||c.l)+(e.planned?'<span class="sptag">'+(e.billsLater?"bills later":"planned")+'</span>':'')+'</div><span>'+esc(sub)+'</span></div>'+
+      '<div class="a">'+(e.planned?"~":"")+money2(e.amount)+'</div>');
+    row.setAttribute("data-id",e.id);
+    /* swipe-left or long-press → delete (confirmed); tap a planned row → inline amount edit */
+    var sx=null,sy=null,moved=false,lp=null,armed=false;
+    row.addEventListener("pointerdown",function(ev){if(ev.button>0)return;sx=ev.clientX;sy=ev.clientY;moved=false;armed=false;lp=setTimeout(function(){lp=null;confirmDelete(row,e);},600);});
+    row.addEventListener("pointermove",function(ev){if(sx===null)return;var dx=ev.clientX-sx,dy=ev.clientY-sy;
+      if(Math.abs(dx)>10||Math.abs(dy)>10){moved=true;if(lp){clearTimeout(lp);lp=null;}}
+      if(dx<-60&&Math.abs(dy)<40){armed=true;row.style.transform="translateX(-24px)";}});
+    function up(){if(lp){clearTimeout(lp);lp=null;}if(armed){row.style.transform="";confirmDelete(row,e);}sx=null;}
+    row.addEventListener("pointerup",up);
+    row.addEventListener("pointercancel",function(){if(lp){clearTimeout(lp);lp=null;}row.style.transform="";sx=null;armed=false;});
+    row.addEventListener("click",function(){if(moved||armed)return;if(e.planned&&!row.querySelector(".sp-edit")&&!row.querySelector(".sp-conf"))editPlanned(row,e);});
+    return row;
+  }
+  function confirmDelete(row,e){
+    if(row.querySelector(".sp-conf"))return;
+    row.innerHTML='<div class="sp-conf"><span>Delete “'+esc(e.note||CATMAP[e.cat].l)+'”?</span><button class="btn del" type="button">Delete</button><button class="btn" type="button">Cancel</button></div>';
+    row.querySelector(".del").addEventListener("click",function(ev){ev.stopPropagation();
+      var t=T();if(!t)return;
+      if(isSeededId(e.id))t.spend.dismissed[e.id]=true;   /* a deleted seeded row stays deleted */
+      t.spend.entries=t.spend.entries.filter(function(x){return x.id!==e.id;});save(state);renderSpend();});
+    row.querySelectorAll(".btn")[1].addEventListener("click",function(ev){ev.stopPropagation();renderSpend();});
+  }
+  function editPlanned(row,e){
+    var a=row.querySelector(".a");
+    a.innerHTML='<span class="sp-edit"><input type="text" inputmode="decimal"><button class="btn go" type="button">Save</button></span>';
+    var inp=a.querySelector("input");inp.value=e.amount;inp.focus();
+    a.querySelector("button").addEventListener("click",function(ev){
+      ev.stopPropagation();var v=parseFloat(String(inp.value).replace(/[^0-9.]/g,""));
+      if(v>0){e.amount=v;e.planned=false;e.ts=Date.now();save(state);}
+      renderSpend(e.id);
+    });
+    inp.addEventListener("click",function(ev){ev.stopPropagation();});
+  }
+  function renderSpendDays(newId,openAnim,closeAnim){
+    var t=T(),wrap=$("spendDays");if(!t)return;wrap.innerHTML="";
+    var cd=currentDay(),byDay={};
+    t.spend.entries.forEach(function(e){(byDay[e.day]=byDay[e.day]||[]).push(e);});
+    /* order: current day, then future days ascending, then past days descending, Pre-trip last */
+    var order=[cd],i;for(i=cd+1;i<=RT.DAYS;i++)order.push(i);for(i=cd-1;i>=1;i--)order.push(i);if(cd!==0)order.push(0);
+    order.forEach(function(d){
+      var list=(byDay[d]||[]).slice().sort(function(a,b){return b.ts-a.ts;}),act=0;
+      list.forEach(function(e){if(!e.planned)act+=e.amount;});
+      var card=el("div","card spc spday"),s=stopForDay(d);card.setAttribute("data-day",d);
+      card.appendChild(el("div","dayh",'<h2>'+(d>0?'Day '+d+'<small>'+esc(fmtDay(addDays(departDate(),d-1)))+(s?' · '+esc(s.short||s.name):'')+'</small>':'Pre-trip')+(d===cd?'<span class="now">Now</span>':'')+'</h2><b>'+money(act)+'</b>'));
+      list.forEach(function(e){card.appendChild(spendRow(e,e.id===newId));});
+      var sec=el("div","addsec");
+      if(t.ui.openDay===d){var f=buildAddForm(d);if(openAnim===d)f.classList.add("new");sec.appendChild(f);}
+      else{
+        var r=el("button","addrow2",'<span class="plus">+</span>'+(d>0?"Add to Day "+d:"Add to Pre-trip"));r.type="button";
+        if(closeAnim===d)r.classList.add("new");
+        r.addEventListener("click",function(){var prev=t.ui.openDay;t.ui.openDay=d;save(state);renderSpendDays(undefined,d,prev);});
+        sec.appendChild(r);
+      }
+      card.appendChild(sec);wrap.appendChild(card);
+    });
+  }
+  function nearestStop(lat,lng){var best=null,bd=Infinity;RT.stops.forEach(function(s){var d=hav({lat:lat,lng:lng},{lat:+s.lat,lng:+s.lng});if(d<bd){bd=d;best=s;}});return best;}
+  function isSeededId(id){
+    var t=T();if(!t)return false;
+    return t.charges.some(function(c){return c.id===id;})||t.expenses.some(function(x){return x.id===id;});
+  }
+  function seedCharges(){   /* every render: add any trip.charges session not yet in entries (and not user-deleted) as an actual charging entry */
+    var t=T();if(!t)return;
+    var have={},dis=t.spend.dismissed||{},added=false;
+    t.spend.entries.forEach(function(e){have[e.id]=true;});
+    t.charges.forEach(function(c){
+      if(c.planned||have[c.id]||dis[c.id]||!c.date)return;   /* planned chargers are map-only until logged as a real session */
+      var s=c.stopId?RT.stops.filter(function(x){return x.id===c.stopId;})[0]:nearestStop(+c.lat,+c.lng);
+      var e={id:c.id,amount:+c.cost||0,cat:"charging",note:c.name||"Charging",day:dayForDate(parseYMD(c.date)),stopId:s?s.id:null,ts:chgTs(c),planned:false,billsLater:false};
+      if(c.kwh>0)e.kwh=c.kwh;
+      t.spend.entries.push(e);added=true;
+    });
+    if(added)saveSeed(state);
+  }
+  function seedExpenses(){   /* every render: add any trip.expenses receipt not yet in entries (and not user-deleted) as an actual entry */
+    var t=T();if(!t)return;
+    var have={},dis=t.spend.dismissed||{},added=false;
+    t.spend.entries.forEach(function(e){have[e.id]=true;});
+    t.expenses.forEach(function(x){
+      if(have[x.id]||dis[x.id]||!x.date)return;
+      var d=dayForDate(parseYMD(x.date)),st=stopForDay(d);
+      t.spend.entries.push({id:x.id,amount:+x.amount||0,cat:CATMAP[x.cat]?x.cat:"misc",note:x.note||"",day:d,stopId:st?st.id:null,ts:chgTs(x),planned:false,billsLater:false});added=true;
+    });
+    if(added)saveSeed(state);
+  }
+  function renderSpend(newId){if(!T())return;seedCharges();seedExpenses();syncNow();renderSpendTop();renderSpendDays(newId);}
+
+  /* ---------- SPEND INGEST: shared entry factory, merchant mapping, paste import, URL ingest ---------- */
+  function addSpendEntry(o){   /* same schema as a manual entry, planned:false */
+    var t=T();if(!t)return null;
+    var d=(typeof o.day==="number")?o.day:currentDay(),s=stopForDay(d);
+    var e={id:"e"+Date.now()+Math.random().toString(36).slice(2,6),amount:o.amount,cat:CATMAP[o.cat]?o.cat:"misc",note:(o.note||"").trim(),day:d,stopId:s?s.id:null,ts:o.ts||Date.now(),planned:false,billsLater:false};
+    if(o.kwh>0)e.kwh=o.kwh;
+    t.spend.entries.push(e);return e;
+  }
+  var MERCHANTS=[   /* case-insensitive substring → category; first hit wins */
+    ["charging",["tesla","supercharger","electrify","evgo","chargepoint"]],
+    ["tolls",["tollway","turnpike","pikepass","i-pass","toll"]],
+    ["parking",["parking","garage","spothero","parkmobile"]],
+    ["kane",["petsmart","petco","chewy","vet"]],
+    ["hotel",["quality inn","home2","sonesta","hilton","marriott","hyatt","hotel","inn"]],
+    ["food",["culver","mcdonald","chick-fil-a","taco","pizza","grill","cafe","coffee","starbucks","restaurant","diner","wendy","sonic","whataburger"]],
+    ["groceries",["kroger","walmart","target","safeway","albertsons","smith's","fry's","trader joe","whole foods","grocery","market"]]];
+  function catForMerchant(m){
+    var s=String(m||"").toLowerCase();
+    for(var i=0;i<MERCHANTS.length;i++){var k=MERCHANTS[i][1];for(var j=0;j<k.length;j++)if(s.indexOf(k[j])>=0)return MERCHANTS[i][0];}
+    return "misc";
+  }
+  var MON=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  function parseTxLine(line){   /* "9/5 19.60 TESLA SUPERCHARGER" · "2026-09-05  $19.60  Tesla" · "Sep 5, 2026 Culver's $16.00" · "$16.00 Culver's" */
+    var s=line.trim(),m,date=null;if(!s)return null;
+    if((m=s.match(/\b(\d{4})-(\d{2})-(\d{2})\b/))){date=new Date(+m[1],+m[2]-1,+m[3]);s=s.replace(m[0]," ");}
+    else if((m=s.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/))){var y=m[3]?(+m[3]<100?2000+ +m[3]:+m[3]):departDate().getFullYear();date=new Date(y,+m[1]-1,+m[2]);s=s.replace(m[0]," ");}
+    else if((m=s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?\b/i))){date=new Date(m[3]?+m[3]:departDate().getFullYear(),MON.indexOf(m[1].slice(0,3).toLowerCase()),+m[2]);s=s.replace(m[0]," ");}
+    var a=s.match(/\$\s*(\d[\d,]*(?:\.\d{1,2})?)/)||s.match(/(?:^|\s)(\d[\d,]*\.\d{2})(?=\s|$)/)||s.match(/(?:^|\s)(\d[\d,]*)(?=\s|$)/);
+    if(!a)return null;
+    var amount=parseFloat(a[1].replace(/,/g,""));if(!(amount>0))return null;
+    s=s.replace(a[0]," ");
+    var merchant=s.replace(/\s+/g," ").replace(/^[\s\-·,|]+|[\s\-·,|]+$/g,"").trim();
+    return{amount:amount,merchant:merchant,cat:catForMerchant(merchant),day:date?dayForDate(date):currentDay()};
+  }
+  function isDupEntry(day,amount,merchant,list){
+    var mm=String(merchant||"").toLowerCase();
+    return (list||T().spend.entries).some(function(e){return !e.planned&&e.day===day&&Math.abs(e.amount-amount)<0.005&&String(e.note||"").toLowerCase()===mm;});
+  }
+  function openImportSheet(){
+    if(!T())return;
+    var back=el("div","modal-back",
+      '<div class="modal"><h2>Import transactions</h2>'+
+      '<textarea class="imp" placeholder="One per line, e.g.\n9/5 19.60 TESLA SUPERCHARGER\n$16.00 Culver\u0027s"></textarea>'+
+      '<div class="imp-rows" hidden></div><div class="imp-res" hidden></div>'+
+      '<div class="mbtns"><button class="btn go" id="impPreview" type="button">Preview</button><button class="btn" id="impClose" type="button">Done</button></div></div>');
+    var ta=back.querySelector("textarea"),rows=back.querySelector(".imp-rows"),res=back.querySelector(".imp-res"),btn=back.querySelector("#impPreview"),parsed=[];
+    back.addEventListener("click",function(e){if(e.target===back)back.remove();});
+    back.querySelector("#impClose").addEventListener("click",function(){back.remove();});
+    function preview(){
+      parsed=ta.value.split(/\r?\n/).map(parseTxLine).filter(Boolean);
+      rows.innerHTML="";rows.hidden=false;res.hidden=true;
+      if(!parsed.length){rows.appendChild(el("div","empty","Nothing I could read — need an amount per line."));btn.textContent="Preview";btn.onclick=preview;return;}
+      parsed.forEach(function(r){
+        var row=el("div","imp-row",'<div class="l"><div>'+esc(r.merchant||"(no merchant)")+' <span>· '+dayLabel(r.day)+'</span></div><div>'+money2(r.amount)+'</div></div><div class="chips2"></div>');
+        var ch=row.querySelector(".chips2");
+        function paint(){ch.innerHTML="";CATS.forEach(function(c){var b=el("button","chip2"+(r.cat===c.id?" on":""),c.e+" "+c.l);b.type="button";b.addEventListener("click",function(){r.cat=c.id;paint();});ch.appendChild(b);});}
+        paint();rows.appendChild(row);
+      });
+      btn.textContent="Import "+parsed.length;btn.onclick=doImport;
+    }
+    function doImport(){
+      var added=0,skipped=0,lastId=null,before=T().spend.entries.slice();   /* dedupe against what was already present, not against this batch */
+      parsed.forEach(function(r){if(isDupEntry(r.day,r.amount,r.merchant,before)){skipped++;return;}var e=addSpendEntry({amount:r.amount,cat:r.cat,note:r.merchant,day:r.day});if(e){lastId=e.id;added++;}});
+      if(added)saveSeed(state);
+      renderSpendTop();renderSpendDays(lastId||undefined);
+      res.hidden=false;res.textContent=added+" imported"+(skipped?" · "+skipped+" skipped (already there)":"");
+      rows.hidden=true;btn.textContent="Preview";btn.onclick=preview;
+    }
+    btn.onclick=preview;
+    document.body.appendChild(back);ta.focus();
+  }
+  $("importLink").addEventListener("click",function(ev){ev.preventDefault();openImportSheet();});
+  function ingestFromUrl(){   /* ?add=<amount>&m=<merchant>&cat=<category>&kwh=<n> → one entry on the active trip, then the query is stripped */
+    var q=location.search;if(!q||q.indexOf("add=")<0)return false;
+    var P={};q.slice(1).split("&").forEach(function(kv){var i=kv.indexOf("="),k=decodeURIComponent(i<0?kv:kv.slice(0,i)),v=decodeURIComponent((i<0?"":kv.slice(i+1)).replace(/\+/g," "));P[k]=v;});
+    try{history.replaceState(null,"",location.pathname+location.hash);}catch(e){}
+    var t=T();if(!t)return false;
+    var amt=parseFloat(String(P.add||"").replace(/[^0-9.]/g,""));if(!(amt>0))return false;
+    var m=(P.m||"").trim(),cat=P.cat&&CATMAP[P.cat]?P.cat:catForMerchant(m),k=parseFloat(P.kwh||""),now=Date.now();
+    var dup=t.spend.entries.some(function(e){return !e.planned&&Math.abs(e.amount-amt)<0.005&&String(e.note||"").toLowerCase()===m.toLowerCase()&&now-e.ts<60000;});
+    var id=null;
+    if(!dup){var e2=addSpendEntry({amount:amt,cat:cat,note:m,kwh:k>0?k:null});if(e2){id=e2.id;save(state);}}
+    $("nav-spend").click();
+    renderSpend(id||undefined);
+    return true;
+  }
+
+  /* ---------- SYNC: adapter-shaped Gist store, per-leaf newest-wins merge with tombstones, offline queue.
+     Dormant in v1: no Gist ID is shipped, so nothing is pushed until one is entered on the Trips screen. ---------- */
+  var SKEY="mileMarkerSync",SYNC_FILE="milemarker-sync.json";
+  var SYNC={cfg:null,etag:null,dirty:false,pending:{},timer:null,retry:0,retryTimer:null,busy:false,lastSync:0,lastFrom:"",err:"",auth:true,online:true};
+  function syncOn(){return !!(SYNC.cfg&&SYNC.cfg.gistId&&SYNC.cfg.token);}
+  function syncLoad(){try{var r=window.localStorage.getItem(SKEY);SYNC.cfg=r?JSON.parse(r):null;}catch(e){SYNC.cfg=null;}
+    if(SYNC.cfg){SYNC.etag=SYNC.cfg.etag||null;SYNC.lastSync=SYNC.cfg.lastSync||0;SYNC.lastFrom=SYNC.cfg.lastFrom||"";SYNC.dirty=!!SYNC.cfg.dirty;if(SYNC.dirty)SYNC.pending={"(earlier)":1};}}
+  function syncStore(){if(!SYNC.cfg)return;SYNC.cfg.etag=SYNC.etag;SYNC.cfg.lastSync=SYNC.lastSync;SYNC.cfg.lastFrom=SYNC.lastFrom;SYNC.cfg.dirty=SYNC.dirty;try{window.localStorage.setItem(SKEY,JSON.stringify(SYNC.cfg));}catch(e){}}
+  function deviceGuess(){var u=navigator.userAgent||"";if(/iPad/.test(u)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1))return "iPad";if(/iPhone/.test(u))return "iPhone";if(/Android/.test(u))return "Android";if(/Mac/.test(u))return "Mac";return "Browser";}
+  function syncMarkDirty(paths){   /* called by commit(); queues a push 2 s after the last change */
+    if(typeof SYNC==="undefined"||!SYNC||!syncOn())return;
+    paths.forEach(function(p){SYNC.pending[p]=1;});SYNC.dirty=true;syncStore();syncStatus();
+    if(SYNC.timer)clearTimeout(SYNC.timer);
+    SYNC.timer=setTimeout(function(){SYNC.timer=null;syncPush();},2000);
+  }
+  function gistReq(method,body,etag){
+    var h={"Accept":"application/vnd.github+json","Authorization":"token "+SYNC.cfg.token};
+    if(etag&&method==="GET")h["If-None-Match"]=etag;
+    if(body)h["Content-Type"]="application/json";
+    return fetch("https://api.github.com/gists/"+encodeURIComponent(SYNC.cfg.gistId),{method:method,headers:h,body:body?JSON.stringify(body):undefined,cache:"no-store"});
+  }
+  function authFail(status){SYNC.auth=false;SYNC.err="Token rejected ("+status+") — check the token and Gist ID, then Connect again";syncStore();}
+  function mergeRemote(rs){   /* per leaf: newer touched wins; a missing side keeps the other's; tombstones beat stale values; ties keep local */
+    var L=leaves(state),R=leaves(rs),LT=state.meta.touched,RT2=(rs&&rs.meta&&rs.meta.touched)||{},paths={},k,changed=0;
+    for(k in L)paths[k]=1;for(k in R)paths[k]=1;for(k in LT)paths[k]=1;for(k in RT2)paths[k]=1;
+    Object.keys(paths).forEach(function(p){
+      if(skipPath(p))return;
+      var lv=L[p],rv=R[p],lt=(p in LT)?LT[p]:(lv!==undefined?0:undefined),rt=(p in RT2)?RT2[p]:(rv!==undefined?0:undefined);
+      if(rt===undefined)return;
+      var take=(lt===undefined)||rt>lt||(rt===lt&&lv===undefined&&rv!==undefined);
+      if(!take)return;
+      if(rv!==lv){setLeaf(state,p,rv===undefined?undefined:JSON.parse(rv));changed++;}
+      LT[p]=rt;
+    });
+    /* the store is behind this device somewhere (a concurrent writer, or an older gist): queue a push so nothing is lost */
+    var behind=Object.keys(LT).some(function(p){return LT[p]>0&&!skipPath(p)&&(RT2[p]===undefined||RT2[p]<LT[p]);});
+    if(behind&&!SYNC.dirty){SYNC.dirty=true;SYNC.pending["(merge)"]=1;syncStore();}
+    if(changed)Object.keys(state.trips).forEach(function(id){normalizeTrip(state.trips[id]);});
+    return changed;
+  }
+  function syncPull(){   /* GET with If-None-Match → merge. Resolves {changed, from} */
+    return gistReq("GET",null,SYNC.etag).then(function(r){
+      if(r.status===304)return {changed:0,from:""};
+      if(r.status===401||r.status===403){authFail(r.status);throw new Error("auth");}
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      var et=r.headers.get("ETag");
+      return r.json().then(function(g){
+        var f=g&&g.files&&g.files[SYNC_FILE],content=(f&&f.content)||"",doc=null;
+        try{doc=content?JSON.parse(content):null;}catch(e){doc=null;}   /* empty or non-JSON gist = empty state */
+        var n=0,from="";
+        if(doc&&doc.state&&typeof doc.state==="object"){n=mergeRemote(doc.state);from=doc.device||"";}
+        SYNC.etag=et||null;
+        if(n){persistQuiet();SYNC.lastFrom=from||SYNC.lastFrom;}
+        return {changed:n,from:from};
+      });
+    });
+  }
+  function afterPull(pr){if(!pr||!pr.changed)return;renderAll();toast("Pulled "+pr.changed+" change"+(pr.changed===1?"":"s")+(pr.from?" from "+pr.from:""));}
+  function syncPush(){   /* pull + merge first, then write; never overwrites blind */
+    if(!syncOn()||!SYNC.auth||SYNC.busy)return Promise.resolve();
+    if(navigator.onLine===false){SYNC.online=false;syncStatus();syncRetry();return Promise.resolve();}
+    SYNC.busy=true;syncStatus();
+    var pulled=null;
+    return syncPull().then(function(pr){
+      pulled=pr;
+      var doc={state:state,device:SYNC.cfg.device||deviceGuess(),savedAt:Date.now()},files={};files[SYNC_FILE]={content:JSON.stringify(doc)};
+      return gistReq("PATCH",{files:files});
+    }).then(function(r){
+      if(r.status===401||r.status===403){authFail(r.status);throw new Error("auth");}
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      SYNC.etag=r.headers.get("ETag")||null;
+      SYNC.pending={};SYNC.dirty=false;SYNC.retry=0;SYNC.lastSync=Date.now();SYNC.err="";SYNC.online=true;syncStore();
+      afterPull(pulled);
+    }).catch(syncFail).then(function(){SYNC.busy=false;syncStatus();});
+  }
+  function syncTick(){   /* pull only (load, visible again, every 60 s); a queued change pushes instead */
+    if(!syncOn()||!SYNC.auth||SYNC.busy||document.hidden)return Promise.resolve();
+    if(SYNC.dirty)return syncPush();
+    if(navigator.onLine===false){SYNC.online=false;syncStatus();return Promise.resolve();}
+    SYNC.busy=true;syncStatus();
+    return syncPull().then(function(pr){SYNC.lastSync=Date.now();SYNC.err="";SYNC.online=true;SYNC.retry=0;syncStore();afterPull(pr);})
+      .catch(syncFail).then(function(){SYNC.busy=false;syncStatus();if(SYNC.dirty&&SYNC.auth&&!SYNC.timer)SYNC.timer=setTimeout(function(){SYNC.timer=null;syncPush();},500);});
+  }
+  function syncFail(e){
+    if(e&&e.message==="auth")return;   /* stop until the token is re-entered */
+    SYNC.online=navigator.onLine!==false;SYNC.err=SYNC.online?((e&&e.message)||"request failed"):"";
+    syncRetry();
+  }
+  function syncRetry(){   /* exponential backoff 2 s → 60 s while offline or failing */
+    var d=Math.min(60000,2000*Math.pow(2,SYNC.retry++));
+    if(SYNC.retryTimer)clearTimeout(SYNC.retryTimer);
+    SYNC.retryTimer=setTimeout(function(){SYNC.retryTimer=null;if(SYNC.dirty)syncPush();else syncTick();},d);
+  }
+  function ago(ts){var m=Math.round((Date.now()-ts)/60000);if(m<1)return "just now";if(m<60)return m+" min ago";var h=Math.round(m/60);if(h<48)return h+" h ago";return Math.round(h/24)+" days ago";}
+  function syncStatus(){
+    var s=$("syncStatus");if(!s)return;var txt,err=false,n=Object.keys(SYNC.pending).length;
+    if(!syncOn())txt="Not connected";
+    else if(!SYNC.auth){txt=SYNC.err;err=true;}
+    else if(SYNC.busy)txt="Syncing…";
+    else if(!SYNC.online)txt="Offline — "+n+" change"+(n===1?"":"s")+" queued";
+    else if(SYNC.dirty&&SYNC.err){txt="Retrying ("+SYNC.err+") — "+n+" change"+(n===1?"":"s")+" queued";err=true;}
+    else if(SYNC.dirty)txt=n+" change"+(n===1?"":"s")+" pending…";
+    else if(SYNC.err){txt="Last pull failed: "+SYNC.err;err=true;}
+    else txt=(SYNC.lastSync?"Synced "+ago(SYNC.lastSync):"Connected")+(SYNC.lastFrom?" · Last change from "+SYNC.lastFrom:"");
+    s.textContent=txt;s.classList.toggle("err",err);
+    var b=$("syncDeviceBadge");if(b)b.textContent=syncOn()?(SYNC.cfg.device||deviceGuess())+" · on":"off";
+  }
+  function syncConnect(){
+    var g=$("syncGist").value.trim().replace(/^.*\//,""),t=$("syncToken").value.trim(),d=$("syncDevice").value.trim()||deviceGuess();
+    if(!g||!t){SYNC.err="Enter the Gist ID and a token";$("syncStatus").textContent=SYNC.err;$("syncStatus").classList.add("err");return;}
+    SYNC.cfg={gistId:g,token:t,device:d};SYNC.etag=null;SYNC.auth=true;SYNC.err="";SYNC.retry=0;SYNC.online=true;
+    SYNC.dirty=true;SYNC.pending={"(initial)":1};syncStore();syncStatus();   /* first connect: pull, merge, then push what this device has */
+    syncPush();
+  }
+  function syncDisconnect(){
+    if(SYNC.timer)clearTimeout(SYNC.timer);if(SYNC.retryTimer)clearTimeout(SYNC.retryTimer);SYNC.timer=SYNC.retryTimer=null;
+    SYNC.cfg=null;SYNC.etag=null;SYNC.dirty=false;SYNC.pending={};SYNC.err="";SYNC.auth=true;SYNC.lastSync=0;SYNC.lastFrom="";
+    try{window.localStorage.removeItem(SKEY);}catch(e){}
+    $("syncToken").value="";syncStatus();
+  }
+  function syncInit(){
+    syncLoad();
+    $("syncDevice").value=(SYNC.cfg&&SYNC.cfg.device)||deviceGuess();
+    $("syncGist").value=(SYNC.cfg&&SYNC.cfg.gistId)||"";   /* no default Gist: v1 ships unconnected */
+    $("syncToken").value=(SYNC.cfg&&SYNC.cfg.token)||"";
+    $("syncConnect").addEventListener("click",syncConnect);
+    $("syncDisconnect").addEventListener("click",syncDisconnect);
+    $("syncDevice").addEventListener("change",function(){if(SYNC.cfg){SYNC.cfg.device=this.value.trim()||deviceGuess();syncStore();syncStatus();}});
+    document.addEventListener("visibilitychange",function(){if(!document.hidden)syncTick();});
+    window.addEventListener("online",function(){SYNC.online=true;SYNC.retry=0;if(SYNC.dirty)syncPush();else syncTick();});
+    window.addEventListener("offline",function(){SYNC.online=false;syncStatus();});
+    setInterval(function(){if(!document.hidden)syncTick();},60000);
+    setInterval(syncStatus,30000);
+    syncStatus();
+    if(syncOn())syncTick();
+  }
+
+  var toastT=null;
+  function toast(msg){var t=$("toast");if(!t)return;t.textContent=msg;t.classList.add("show");if(toastT)clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove("show");},2600);}
+
+  /* ---------- TRIPS list: the launch screen ---------- */
+  var STATUS_LABEL={planning:"Planning",live:"Live",done:"Done"},STATUS_RANK={live:0,planning:1,done:2};
+  function tripSummary(t){   /* miles · days · actual spend, computed without touching the active-trip route model */
+    var st=(t.stops||[]).filter(function(s){return s&&isFinite(+s.lat)&&isFinite(+s.lng);});
+    var mi=0,off=[],i;
+    for(i=0;i<st.length;i++){if(i)mi+=+st[i].mi||0;off.push(i===0?0:off[i-1]+(i===1?0:nightsOf(st[i-1])));}
+    var days=off.length?off[off.length-1]+1:0;
+    if(isYMD(t.endDate)&&isYMD(t.departDate)){
+      var span=Math.round((parseYMD(t.endDate)-parseYMD(t.departDate))/86400000)+1;
+      if(span>days)days=span;
+    }
+    var spent=0;((t.spend&&t.spend.entries)||[]).forEach(function(e){if(!e.planned)spent+=e.amount;});
+    return{mi:mi,days:days,spent:spent};
+  }
+  function tripDates(t){
+    if(!isYMD(t.departDate))return "No dates yet";
+    var a=parseYMD(t.departDate);
+    if(!isYMD(t.endDate))return fmtDay(a);
+    var b=parseYMD(t.endDate);
+    return fmtShort(a)+" – "+fmtShort(b)+", "+b.getFullYear();
+  }
+  function sortedTrips(){
+    return Object.keys(state.trips).map(function(id){return state.trips[id];}).sort(function(a,b){
+      var ra=STATUS_RANK[tripStatus(a)],rb=STATUS_RANK[tripStatus(b)];
+      if(ra!==rb)return ra-rb;                                  /* Live pinned first, Done last */
+      return String(b.departDate||"").localeCompare(String(a.departDate||""));   /* then newest departure first */
+    });
+  }
+  function renderTrips(){
+    var wrap=$("tripsList");if(!wrap)return;wrap.innerHTML="";
+    var list=sortedTrips();
+    $("tripsSub").textContent=list.length
+      ?(list.length+" trip"+(list.length===1?"":"s")+" · tap one to open it")
+      :"Every trip, its route, its pack list and what it cost.";
+    if(!list.length){
+      wrap.appendChild(el("div","tripsempty","No trips yet.<br>Start one and everything else hangs off it."));
+      return;
+    }
+    list.forEach(function(t){
+      var s=tripStatus(t),x=tripSummary(t);
+      var stat=[x.mi?num(x.mi)+" mi":"— mi",x.days?x.days+" day"+(x.days===1?"":"s"):"— days",x.spent?money(x.spent):"$—"].join(" · ");
+      var b=el("button","trcard",
+        '<div class="trh"><div class="tn">'+esc(t.name)+'</div><span class="schip '+s+'">'+STATUS_LABEL[s]+'</span></div>'+
+        '<div class="tdt">'+esc(tripDates(t))+'</div><div class="tst">'+stat+'</div>');
+      b.type="button";b.setAttribute("data-trip",t.id);
+      b.addEventListener("click",function(){openTrip(t.id);});
+      wrap.appendChild(b);
+    });
+  }
+  /* New trip → Basics only (name + dates; the vehicle default and the Stops/Review sheets land in Build 4) */
+  function openBasics(){
+    var v=vehicleOf(null);
+    var back=el("div","modal-back",
+      '<div class="modal sheet" id="basicsSheet"><h2>New trip</h2>'+
+      '<div class="frm">'+
+      '<label>Name<input type="text" id="btName" placeholder="Michigan golf, Kane to Tahoe…" autocapitalize="words" enterkeyhint="next"></label>'+
+      '<label>Depart<input type="date" id="btDepart"></label>'+
+      '<label>Return <span style="font-weight:400">(optional)</span><input type="date" id="btReturn"></label>'+
+      '<div class="veh">Vehicle · '+esc(v.name)+' · '+(+v.epaWhMi||270)+' Wh/mi</div>'+
+      '<div class="err" id="btErr"></div>'+
+      '</div>'+
+      '<div class="mbtns"><button class="btn go" id="btCreate" type="button">Create trip</button><button class="btn" id="btCancel" type="button">Cancel</button></div></div>');
+    back.addEventListener("click",function(e){if(e.target===back)back.remove();});
+    back.querySelector("#btCancel").addEventListener("click",function(){back.remove();});
+    back.querySelector("#btDepart").value=ymd(new Date());
+    back.querySelector("#btCreate").addEventListener("click",function(){
+      var n=back.querySelector("#btName").value.trim(),d=back.querySelector("#btDepart").value,r=back.querySelector("#btReturn").value;
+      if(!n){back.querySelector("#btErr").textContent="Give the trip a name.";return;}
+      if(!isYMD(d)){back.querySelector("#btErr").textContent="Pick a departure date.";return;}
+      if(isYMD(r)&&r<d){back.querySelector("#btErr").textContent="The return date is before you leave.";return;}
+      createTrip(n,d,isYMD(r)?r:"");
+      back.remove();renderTrips();toast("Trip created");
+    });
+    document.body.appendChild(back);
+    back.querySelector("#btName").focus();
+  }
+  $("newTripBtn").addEventListener("click",openBasics);
+
+  /* ---------- screens + tabs ---------- */
+  var pages=["trip","pack","spend"];
+  var scrollEl=$("scroll"),scrollPos={},curPage="trip";
+  function activate(p){
+    pages.forEach(function(q){
+      $("nav-"+q).classList.toggle("active",q===p);
+      $("page-"+q).classList.toggle("active",q===p);
+    });
+    $("page-trips").classList.remove("active");
+  }
+  function showTrips(){
+    if(curPage&&curPage!=="trips")scrollPos[curPage]=scrollEl.scrollTop;
+    if(curPage==="trip")resetMapZoom(false);
+    document.body.classList.add("listview");
+    pages.forEach(function(q){$("page-"+q).classList.remove("active");});
+    $("page-trips").classList.add("active");
+    curPage="trips";
+    renderTrips();
+    scrollEl.scrollTop=scrollPos.trips||0;
+  }
+  function openTrip(id){
+    if(!state.trips[id])return;
+    if(curPage==="trips")scrollPos.trips=scrollEl.scrollTop;
+    setActive(id);
+    document.body.classList.remove("listview");
+    activate("trip");curPage="trip";
+    renderAll();
+    if(T().ui.tracking)startTrack();else stopTrack();
+    scrollEl.scrollTop=0;
+  }
+  $("nav-back").addEventListener("click",showTrips);
+  pages.forEach(function(p){
+    $("nav-"+p).addEventListener("click",function(){
+      if(!T())return;
+      scrollPos[curPage]=scrollEl.scrollTop;
+      activate(p);
+      if(curPage==="trip"&&p!=="trip")resetMapZoom(false);
+      if(p==="trip"){ensureTripMap();renderStats();}
+      if(p==="pack")renderPack();
+      if(p==="spend")renderSpend();
+      curPage=p;scrollEl.scrollTop=scrollPos[p]||0;
+    });
+  });
+
+  function renderAll(){
+    renderTrips();
+    if(!T())return;
+    buildRoute();
+    renderTripHead();renderTripStops();syncTrackSw();ensureTripMap();renderPack();renderSpend();
+  }
+
+  /* ---------- boot ---------- */
+  buildRoute();
+  if(activeTripId&&state.trips[activeTripId]){
+    document.body.classList.remove("listview");
+    activate("trip");curPage="trip";
+    renderAll();
+    if(T().ui.tracking)startTrack();
+  }else{
+    setActive(null);showTrips();
+  }
+  ingestFromUrl();
+  initDone=true;   /* from here on every save() is a user write and carries a fresh timestamp */
+  syncInit();
+</script>
+</body>
+</html>

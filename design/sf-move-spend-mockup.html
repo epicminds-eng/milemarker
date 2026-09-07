@@ -1,0 +1,97 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>SF Move · Spend tab mockup</title>
+<style>
+:root{--bg:#F2F2F7;--card:#fff;--ink:#1C1C1E;--mute:#6E6E73;--line:#E5E5EA;--blue:#0A7AFF;--green:#34C759;--orange:#FF9500;--purple:#AF52DE;--teal:#30B0C7;--red:#FF3B30;--gray:#8E8E93;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--r:16px}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:430px;margin:0 auto;padding:var(--s5) var(--s4) 0}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--gray);margin:0 0 var(--s1)}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:0 0 var(--s1)}
+.sub{font-size:15px;color:var(--mute);margin:0 0 var(--s4)}
+.card{background:var(--card);border-radius:var(--r);padding:var(--s4);margin-bottom:var(--s3)}
+.total{display:flex;align-items:baseline;gap:var(--s2)}
+.total b{font-size:40px;font-weight:800;letter-spacing:-.03em}
+.total span{font-size:15px;color:var(--mute)}
+.bar{display:flex;height:10px;border-radius:999px;overflow:hidden;margin:var(--s3) 0 var(--s2);background:var(--line)}
+.bar i{display:block;height:100%}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:var(--s1) var(--s3);font-size:13px;color:var(--mute)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.legend b{color:var(--ink);font-weight:600;float:right}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-top:var(--s3)}
+.kpi{background:var(--bg);border-radius:12px;padding:var(--s2) var(--s3);text-align:center}
+.kpi b{display:block;font-size:17px;font-weight:700}.kpi span{font-size:11px;color:var(--gray);text-transform:uppercase;letter-spacing:.05em}
+.add{display:flex;gap:var(--s2);align-items:center;min-width:0}.add input{min-width:0;width:0;flex:1 1 0}.add .amt{flex:0 0 40%}
+.amt{flex:0 0 38%;font-size:28px;font-weight:700;border:0;background:var(--bg);border-radius:12px;padding:var(--s2) var(--s3);color:var(--ink)}
+.note{flex:1;min-width:0;width:100%;font-size:15px;border:0;background:var(--bg);border-radius:12px;padding:14px var(--s3);color:var(--ink)}
+.chips{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
+.chip{font-size:13px;font-weight:600;padding:7px 12px;border-radius:999px;background:var(--bg);color:var(--mute)}
+.chip.on{background:var(--blue);color:#fff}
+.btn{margin-top:var(--s3);width:100%;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:600;background:var(--blue);color:#fff}
+.hint{font-size:12px;color:var(--gray);margin-top:var(--s2)}
+.day{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s2)}
+.day h2{font-size:17px;font-weight:700;margin:0}.day h2 small{font-weight:500;color:var(--mute);font-size:13px;margin-left:6px}
+.day b{font-size:15px}
+.row{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex:0 0 34px}
+.row .t{flex:1;min-width:0}.row .t div{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .t span{font-size:12px;color:var(--gray)}
+.row .a{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.plan{opacity:.62}.plan .a{color:var(--mute);font-weight:600}.plan .ic{outline:1.5px dashed var(--gray);outline-offset:-1.5px;background:transparent!important}
+.tag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:var(--bg);color:var(--gray);margin-left:6px;vertical-align:1px}
+.ch{background:#E5F0FF}.ho{background:#F3E8FF}.fo{background:#FFF1E0}.ka{background:#E6F8EA}.mi{background:#EEF0F3}
+.tabs{position:sticky;bottom:0;margin:0 -16px;background:rgba(249,249,251,.94);backdrop-filter:blur(20px);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 0 26px}
+.tabs div{font-size:11px;color:var(--gray);text-align:center;font-weight:500}.tabs div b{display:block;font-size:22px;font-weight:400;margin-bottom:2px}.tabs .on{color:var(--blue)}
+.ft{font-size:11px;color:#AEAEB2;text-align:center;margin-top:var(--s4)}
+.est{font-size:13px;color:var(--mute);margin-top:var(--s2);line-height:1.45}
+</style></head><body><div class="wrap">
+<p class="eyebrow">Mockup · replaces Info tab</p><h1>Spend</h1><p class="sub">Every dollar the drive costs, by day.</p>
+
+<div class="card">
+  <div class="total"><b>$412</b><span>so far · ~$1,340 projected</span></div>
+  <div class="bar"><i style="width:22%;background:var(--blue)"></i><i style="width:41%;background:var(--purple)"></i><i style="width:17%;background:var(--orange)"></i><i style="width:11%;background:var(--green)"></i><i style="width:9%;background:var(--gray)"></i></div>
+  <div class="legend">
+    <div><i style="background:var(--blue)"></i>Charging <b>$92</b></div>
+    <div><i style="background:var(--purple)"></i>Hotels <b>$168</b></div>
+    <div><i style="background:var(--orange)"></i>Food <b>$71</b></div>
+    <div><i style="background:var(--green)"></i>Kane <b>$45</b></div>
+    <div><i style="background:var(--gray)"></i>Tolls · parking · misc <b>$36</b></div>
+  </div>
+  <div class="kpis"><div class="kpi"><b>$0.48</b><span>per mile</span></div><div class="kpi"><b>$206</b><span>per day</span></div><div class="kpi"><b>855</b><span>mi driven</span></div></div>
+</div>
+
+<div class="card">
+  <div class="add"><input class="amt" value="$" readonly><input class="note" placeholder="What was it? (optional)" readonly></div>
+  <div class="chips"><span class="chip on">⚡︎ Charging</span><span class="chip">🏨 Hotel</span><span class="chip">🍔 Food</span><span class="chip">🐾 Kane</span><span class="chip">🛣 Tolls</span><span class="chip">🅿︎ Parking</span><span class="chip">· Misc</span></div>
+  <button class="btn">Add to Day 2 · Weatherford</button>
+  <p class="hint">Day and stop auto-fill from where you are. Amount keypad opens on tap.</p>
+</div>
+
+<div class="card">
+  <div class="day"><h2>Day 2<small>Sun Sept 6 · Weatherford</small></h2><b>$183</b></div>
+  <div class="row"><div class="ic ch">⚡︎</div><div class="t"><div>Supercharger · Tulsa</div><span>41 kWh · 4:10 PM</span></div><div class="a">$19.60</div></div>
+  <div class="row"><div class="ic fo">🍔</div><div class="t"><div>Lunch · Joplin</div><span>12:35 PM</span></div><div class="a">$16</div></div>
+  <div class="row plan"><div class="ic ho">🏨</div><div class="t"><div>Home2 Suites Weatherford<span class="tag">planned</span></div><span>tap to confirm actual</span></div><div class="a">~$112</div></div>
+  <div class="row plan"><div class="ic ka">🐾</div><div class="t"><div>Pet fee · Home2<span class="tag">planned</span></div><span>$75/stay</span></div><div class="a">~$75</div></div>
+</div>
+
+<div class="card">
+  <div class="day"><h2>Day 1<small>Sat Sept 5 · St. Robert</small></h2><b>$229</b></div>
+  <div class="row"><div class="ic ch">⚡︎</div><div class="t"><div>Supercharger · Bloomington</div><span>38 kWh · 10:50 AM</span></div><div class="a">$17.10</div></div>
+  <div class="row"><div class="ic ch">⚡︎</div><div class="t"><div>Supercharger · Springfield IL</div><span>29 kWh · 1:20 PM</span></div><div class="a">$12.30</div></div>
+  <div class="row"><div class="ic fo">🍔</div><div class="t"><div>Culver's · St. Robert</div><span>7:40 PM</span></div><div class="a">$14</div></div>
+  <div class="row"><div class="ic ho">🏨</div><div class="t"><div>Quality Inn St. Robert</div><span>booked on Orbitz</span></div><div class="a">$84</div></div>
+  <div class="row"><div class="ic ka">🐾</div><div class="t"><div>Pet fee · Quality Inn</div><span>$35/night</span></div><div class="a">$35</div></div>
+  <div class="row"><div class="ic mi">🛣</div><div class="t"><div>I-PASS tolls · Illinois</div><span>auto-added from Logistics</span></div><div class="a">$12.40</div></div>
+</div>
+
+<div class="card">
+  <div class="day"><h2>Pre-trip</h2><b>$0</b></div>
+  <p class="est" style="margin:0">Ship Sticks (3 pieces) and Kane road kit land here when you log them — anything with a receipt before wheels-up.</p>
+</div>
+
+<div class="card">
+  <div class="day"><h2>Projection</h2><b>~$1,340</b></div>
+  <p class="est" style="margin:0">Built from what's known: 3 hotels + pet fees (~$430), charging estimated from remaining miles at your running $/kWh (~$340), food at your running daily average (~$60/day), tolls + parking (~$80). Updates itself as real entries replace planned ones.</p>
+</div>
+<p class="ft">Export includes spend · SF Move · v14 · Sep 3</p>
+<div class="tabs"><div><b>⌂</b>Move</div><div><b>≡</b>Sort</div><div><b>⬡</b>Pack</div><div><b>◎</b>Trip</div><div class="on"><b>$</b>Spend</div></div>
+</div>
+</body></html>

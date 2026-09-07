@@ -1,0 +1,119 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Mile Marker · Stops mockup</title>
+<style>
+:root{--bg:#EFF1F5;--card:#fff;--ink:#111214;--mute:#6B7280;--faint:#9CA3AF;--line:#E9EBEF;--soft:#F3F4F7;--accent:#2F6BFF;--accent2:#6C9BFF;--red:#E82127;--green:#22C55E;--orange:#F59E0B;--amber:#B45309;--amberbg:#FEF3C7;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--r:24px;--r2:16px;--rowh:56px}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.phone{max-width:430px;margin:0 auto;padding:var(--s4) var(--s4) 120px;position:relative;min-height:100vh}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:var(--s2) 0 var(--s4)}
+.nav .back{color:var(--accent);font-size:17px;display:flex;align-items:center;gap:4px}
+.nav .steps{display:flex;gap:6px}.nav .steps i{width:8px;height:8px;border-radius:50%;background:#D1D5DB}.nav .steps i.on{background:var(--accent)}
+.nav .sp{width:60px}
+h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:0 0 2px}.sub{font-size:14px;color:var(--mute);margin:0 0 var(--s4)}
+.list{background:var(--card);border-radius:var(--r);overflow:hidden}
+.row{display:grid;grid-template-columns:28px 1fr auto 18px;align-items:center;gap:var(--s3);min-height:var(--rowh);padding:var(--s3) var(--s4);position:relative}
+.row+.row::before,.ins+.row::before,.row+.ins::before{content:"";position:absolute;left:56px;right:0;top:0;border-top:1px solid var(--line)}
+.row .h{color:#C7CBD2;font-size:18px;letter-spacing:-2px;text-align:center}
+.row .n{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px}
+.row .n .moon{white-space:nowrap;font-size:13px;color:#7C3AED;background:#F1EBFF;border-radius:999px;padding:2px 7px;font-weight:600}
+.row .n .home{font-size:13px;color:#15803D;background:#E7F8EE;border-radius:999px;padding:2px 7px;font-weight:600}
+.row .d{font-size:13px;color:var(--mute);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row .mi{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;white-space:nowrap}
+.row .mi small{display:block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;margin-top:4px}
+.mi small.road{background:#E8F0FF;color:var(--accent)}.mi small.est{background:var(--amberbg);color:var(--amber)}.mi small.man{background:#111214;color:#fff}
+.row .chev{color:#C7CBD2;font-size:20px;text-align:right}
+.ins{position:relative;height:0}
+.ins b{position:absolute;left:50%;top:-11px;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--accent);font-size:15px;line-height:20px;text-align:center;font-weight:500;z-index:2;box-shadow:0 1px 2px rgba(17,18,20,.06)}
+.bk{display:flex;align-items:center;gap:8px;padding:0 var(--s4) var(--s3) 56px;font-size:13px;color:var(--mute)}
+.bk .chip{display:inline-flex;align-items:center;gap:6px;border:1px dashed #C7CBD2;border-radius:999px;padding:4px 10px;color:var(--ink);font-weight:500}
+.bk .chip i{width:8px;height:8px;border-radius:50%;border:1.5px solid #9CA3AF;display:inline-block}
+.bk a{color:var(--accent);font-weight:600;text-decoration:none}
+.add{display:flex;align-items:center;gap:var(--s3);padding:var(--s4);color:var(--accent);font-size:17px;font-weight:600;border-top:1px dashed var(--line)}
+.add i{width:28px;text-align:center;font-style:normal;font-size:22px;line-height:1}
+.totals{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3);margin-top:var(--s4)}
+.tot{background:var(--card);border-radius:var(--r2);padding:14px 16px}.tot .t{font-size:12px;color:var(--mute)}.tot .n{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:4px;white-space:nowrap}.tot .n small{font-size:12px;color:var(--amber);font-weight:600;margin-left:4px}
+.cta{padding:var(--s4) 0 calc(var(--s4) + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 70%,rgba(239,241,245,0));margin-top:var(--s5)}
+.btn{display:block;width:100%;background:var(--ink);color:#fff;border-radius:999px;padding:18px;font-size:17px;font-weight:600;text-align:center;border:0}
+.btn.acc{background:linear-gradient(135deg,#2F6BFF,#6C9BFF)}
+.sheet{margin-top:var(--s6);border-top:1px solid #D9DDE4;padding-top:var(--s5)}
+.eyebrow{font-size:12px;font-weight:600;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;margin:0 0 var(--s2)}
+.grp{background:var(--card);border-radius:var(--r);overflow:hidden;margin-bottom:var(--s4)}
+.f{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);min-height:52px;padding:var(--s3) var(--s4);font-size:16px;position:relative}
+.f+.f::before{content:"";position:absolute;left:var(--s4);right:0;top:0;border-top:1px solid var(--line)}
+.f .l{color:var(--ink);white-space:nowrap}.f .v{color:var(--mute);text-align:right;flex:1}.f .v.set{color:var(--ink)}.f .v.ph{color:var(--faint)}
+.f .tg{width:51px;height:31px;border-radius:999px;background:#E9E9EB;position:relative;flex:none}.f .tg::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.f .tg.on{background:var(--green)}.f .tg.on::after{left:22px}
+.f .b{background:var(--soft);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;color:var(--accent);white-space:nowrap}
+.f .lookup{flex:1;display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:12px;padding:10px 12px;color:var(--faint)}
+.res{padding:0 var(--s4) var(--s3)}.res div{padding:10px 12px;border-radius:12px;font-size:15px;display:flex;justify-content:space-between}.res div.on{background:#E8F0FF;color:var(--accent);font-weight:600}.res small{color:var(--faint)}
+.gnote{font-size:12px;color:var(--faint);padding:0 var(--s4) var(--s3);margin-top:-4px}
+.swap{background:#FFF7ED;border:1px solid #FED7AA;border-radius:var(--r2);padding:14px 16px;margin:0 0 var(--s4);font-size:14px}
+.swap b{display:block;margin-bottom:6px}.swap .opts{display:flex;gap:8px;margin-top:10px}.swap .opts span{border-radius:999px;padding:8px 12px;font-size:13px;font-weight:600;background:#fff;border:1px solid #FED7AA}.swap .opts span.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.stepper{display:inline-flex;align-items:center;gap:0;background:var(--soft);border-radius:999px;overflow:hidden}.stepper span{padding:6px 14px;font-weight:600}.stepper span.pm{color:var(--accent)}
+.note{font-size:13px;color:var(--mute);margin:var(--s3) 0 0;line-height:1.45}
+.ft{font-size:11px;color:#AEAEB2;text-align:center;margin-top:var(--s5)}
+</style></head><body><div class="phone">
+
+<div class="nav"><span class="back">‹ Basics</span><span class="steps"><i class="on"></i><i class="on"></i><i></i></span><span class="sp"></span></div>
+<h1>Stops</h1><p class="sub">Kane to Tahoe · departs Sat Oct 3</p>
+
+<div class="list">
+  <div class="row"><span class="h">≡</span><div><div class="n">Start <span class="home">📍 GPS</span></div><div class="d">Grove St, SF · <a style="color:var(--accent);font-weight:600">Change</a></div></div><div class="mi">—</div><span class="chev">›</span></div>
+  <div class="ins"><b>+</b></div>
+  <div class="row"><span class="h">≡</span><div><div class="n">Sacramento</div><div class="d">Supercharger · lunch</div></div><div class="mi">88<small class="road">road</small></div><span class="chev">›</span></div>
+  <div class="ins"><b>+</b></div>
+  <div class="row"><span class="h">≡</span><div><div class="n">Truckee <span class="moon">☾ 2 nights</span></div><div class="d">Hampton Inn · pets $50</div></div><div class="mi">103<small class="road">road</small></div><span class="chev">›</span></div>
+  <div class="bk"><span class="chip"><i></i>Backup · Reno</span><a>Promote</a></div>
+  <div class="ins"><b>+</b></div>
+  <div class="row"><span class="h">≡</span><div><div class="n">Mammoth <span class="moon">☾ 1 night</span></div><div class="d">Hotel TBD</div></div><div class="mi">~155<small class="est">est.</small></div><span class="chev">›</span></div>
+  <div class="ins"><b>+</b></div>
+  <div class="row"><span class="h">≡</span><div><div class="n">Home</div><div class="d">Grove St, SF</div></div><div class="mi">318<small class="man">manual</small></div><span class="chev">›</span></div>
+  <div class="add"><i>+</i>Add stop</div>
+</div>
+
+<div class="totals">
+  <div class="tot"><div class="t">Miles</div><div class="n">664<small>1 est.</small></div></div>
+  <div class="tot"><div class="t">Nights</div><div class="n">3</div></div>
+  <div class="tot"><div class="t">Days</div><div class="n">5</div></div>
+</div>
+<p class="note">Drag ≡ to reorder — the two legs touching a moved stop re-route. Swipe a row left to delete. + between rows inserts there.</p>
+
+<div class="cta"><button class="btn acc">Next: review</button></div>
+
+<!-- ============ STOP SHEET ============ -->
+<div class="sheet">
+<p class="eyebrow">Stop sheet · editing Mammoth Lakes</p>
+<div class="nav" style="padding-top:0"><span class="back">Cancel</span><b>Stop 4</b><span class="back" style="font-weight:600">Save</span></div>
+
+<div class="swap"><b>Town changed: Bishop → Mammoth Lakes</b>Keep the hotel and the 2 spend rows attached to this stop, or clear them?<div class="opts"><span class="on">Keep</span><span>Clear hotel + rows</span></div></div>
+
+<p class="eyebrow">Where</p>
+<div class="grp">
+  <div class="f"><div class="lookup">🔍 <span style="color:var(--ink)">Mammoth Lakes CA</span></div><span class="b">Lookup</span></div>
+  <div class="res"><div class="on"><span>Mammoth Lakes, Mono County, CA</span><small>✓</small></div><div><span>Mammoth Lakes Airport, CA</span><small></small></div></div>
+  <div class="f"><span class="l">Short name</span><span class="v set">Mammoth</span></div>
+  <div class="f"><span class="l">Coordinates</span><span class="v">37.6485, −118.9721 <span style="color:var(--faint)">›</span></span></div>
+</div>
+<div class="gnote">Coordinates row accepts a pasted "lat, lng" from Apple Maps when there's no signal.</div>
+
+<p class="eyebrow">Stay</p>
+<div class="grp">
+  <div class="f"><span class="l">Overnight</span><span class="tg on"></span></div>
+  <div class="f"><span class="l">Nights</span><span class="stepper"><span class="pm">−</span><span>1</span><span class="pm">+</span></span></div>
+  <div class="f"><span class="l">Hotel</span><span class="v ph">Name · address</span></div>
+  <div class="f"><span class="l">Apple Maps link</span><span class="b">Paste</span></div>
+  <div class="f"><span class="l">Booking link</span><span class="v ph">Orbitz / email ›</span></div>
+  <div class="f"><span class="l">Pet fee</span><span class="v ph">$ per night</span></div>
+  <div class="f"><span class="l">Home stop</span><span class="tg"></span></div>
+</div>
+
+<p class="eyebrow">Route</p>
+<div class="grp">
+  <div class="f"><span class="l">Leg from Truckee</span><span class="v set">~155 mi <small style="background:var(--amberbg);color:var(--amber);padding:2px 7px;border-radius:999px;font-size:11px;font-weight:600">est.</small></span></div>
+  <div class="f"><span class="l">Miles</span><span class="v">tap to override ›</span></div>
+  <div class="f"><span class="l">Backup stop</span><span class="v ph">none · add ›</span></div>
+  <div class="f"><span class="l">Charger search</span><span class="v set" style="font-size:14px">Tesla Supercharger Mammoth Lakes CA</span></div>
+</div>
+<div class="gnote">Leg re-routes on Save. Online → OSRM road miles. Offline → straight-line × 1.25 until "Refresh est. legs".</div>
+</div>
+
+<p class="ft">Mile Marker · Stops mockup v1 · Sep 7 2026</p>
+</div></body></html>

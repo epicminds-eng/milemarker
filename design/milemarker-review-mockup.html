@@ -1,0 +1,103 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Mile Marker · Review mockup</title>
+<style>
+:root{--bg:#EFF1F5;--card:#fff;--ink:#111214;--mute:#6B7280;--faint:#9CA3AF;--line:#E9EBEF;--soft:#F3F4F7;--accent:#2F6BFF;--accent2:#6C9BFF;--red:#E82127;--green:#22C55E;--amber:#B45309;--amberbg:#FEF3C7;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--r:24px;--r2:16px}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.phone{max-width:430px;margin:0 auto;padding:var(--s4) var(--s4) 120px;min-height:100vh}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:var(--s2) 0 var(--s4)}
+.nav .back{color:var(--accent);font-size:17px}
+.nav .steps{display:flex;gap:6px}.nav .steps i{width:8px;height:8px;border-radius:50%;background:#D1D5DB}.nav .steps i.on{background:var(--accent)}
+.nav .sp{width:60px}
+h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:0 0 2px}.sub{font-size:14px;color:var(--mute);margin:0 0 var(--s4)}
+.hero{background:var(--card);border-radius:var(--r);overflow:hidden;position:relative}
+.hero svg{display:block;width:100%;aspect-ratio:380/300}
+.hero .mode{position:absolute;top:14px;right:14px;display:flex;background:var(--soft);border-radius:999px;padding:3px;font-size:12px;font-weight:600}
+.hero .mode span{padding:6px 10px;border-radius:999px;color:var(--mute)}.hero .mode span.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(17,18,20,.08)}
+.hero .leg{position:absolute;left:14px;bottom:12px;display:flex;gap:12px;font-size:11px;color:var(--mute)}
+.hero .leg i{display:inline-block;width:18px;height:0;border-top:2.5px solid var(--accent);vertical-align:middle;margin-right:5px;border-radius:2px}
+.hero .leg i.e{border-top:2.5px dashed #D97706}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3);margin-top:var(--s4)}
+.kpi{background:var(--card);border-radius:var(--r);padding:18px 16px;min-height:118px;position:relative}
+.kpi .t{font-size:13px;color:var(--mute);margin-bottom:10px}
+.kpi .n{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.kpi .d{display:inline-block;font-size:11px;font-weight:600;padding:3px 7px;border-radius:999px;background:#E8F0FF;color:var(--accent);margin-top:10px;white-space:nowrap}
+.kpi .d.warn{background:var(--amberbg);color:var(--amber)}
+.kpi.acc{background:linear-gradient(160deg,#2F6BFF 0%,#5B8BFF 60%,#8EB0FF 100%);color:#fff}.kpi.acc .t{color:rgba(255,255,255,.85)}.kpi.acc .d{background:rgba(255,255,255,.22);color:#fff}
+.card{background:var(--card);border-radius:var(--r);padding:var(--s5);margin-top:var(--s4)}
+.card h2{font-size:20px;font-weight:700;margin:0 0 var(--s2);display:flex;justify-content:space-between;align-items:center}
+.card h2 a{font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;background:#E8F0FF;border-radius:999px;padding:6px 12px}
+.row{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:var(--s3);padding:var(--s3) 0;position:relative}
+.row+.row::before{content:"";position:absolute;left:46px;right:0;top:0;border-top:1px solid var(--line)}
+.row .dot{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.row .dot.s{background:var(--ink)}.row .dot.o{background:#fff;border:2px solid var(--accent);color:var(--accent)}
+.row .n{font-size:16px;font-weight:600}.row .d{font-size:13px;color:var(--mute);margin-top:2px}
+.row .mi{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}.row .mi small{display:block;font-size:11px;color:var(--faint);font-weight:500}.row .mi small.est{color:var(--amber)}
+.bars{margin-top:var(--s4);display:grid;grid-template-columns:70px 1fr 56px;gap:12px 10px;align-items:center;font-size:13px}
+.bars .l{color:var(--mute)}.bars .tr{height:18px;border-radius:7px;background:var(--soft);overflow:hidden}.bars .tr i{display:block;height:100%;border-radius:7px;background:repeating-linear-gradient(135deg,#2F6BFF 0 3px,#7FA6FF 3px 7px)}.bars .tr i.e{background:repeating-linear-gradient(135deg,#F59E0B 0 3px,#FCD34D 3px 7px)}
+.bars .v{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.cta{padding:var(--s4) 0 calc(var(--s4) + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 70%,rgba(239,241,245,0));margin-top:var(--s5)}
+.btn{display:block;width:100%;background:linear-gradient(135deg,#2F6BFF,#6C9BFF);color:#fff;border-radius:999px;padding:18px;font-size:17px;font-weight:600;text-align:center;border:0}
+.ft{font-size:11px;color:#AEAEB2;text-align:center;margin-top:var(--s5)}
+</style></head><body><div class="phone">
+
+<div class="nav"><span class="back">‹ Stops</span><span class="steps"><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sp"></span></div>
+<h1>Review</h1><p class="sub">Kane to Tahoe · Sat Oct 3 – Wed Oct 7</p>
+
+<div class="hero">
+  <svg viewBox="0 0 380 300" xmlns="http://www.w3.org/2000/svg">
+    <rect width="380" height="300" fill="#F7F8FA"/>
+    <!-- simplified outlines, auto-fit to the trip bbox with padding (placeholder shapes) -->
+    <g fill="#EEF0F4" stroke="#D9DDE4" stroke-width="1.2" stroke-linejoin="round">
+      <path d="M-20 -10 L150 -10 L172 60 L214 40 L260 110 L318 150 L360 250 L380 330 L110 330 L60 300 L20 250 L-20 180 Z"/>
+      <path d="M150 -10 L420 -10 L420 220 L360 250 L318 150 L260 110 L214 40 L172 60 Z"/>
+      <path d="M40 -10 L60 20 L52 70 L66 95" fill="none"/>
+    </g>
+    <text x="60" y="250" font-size="10" fill="#B4B9C2" font-weight="600" letter-spacing="1">CALIFORNIA</text>
+    <text x="290" y="90" font-size="10" fill="#B4B9C2" font-weight="600" letter-spacing="1">NEVADA</text>
+    <!-- road-following legs (OSRM) -->
+    <path d="M78 176 C100 168 120 150 140 146 C158 143 166 140 176 132" fill="none" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round"/>
+    <path d="M176 132 C190 118 196 104 208 96 C220 88 232 84 240 78" fill="none" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round"/>
+    <!-- estimated leg (offline) -->
+    <path d="M240 78 L262 156" fill="none" stroke="#D97706" stroke-width="3" stroke-dasharray="6 6" stroke-linecap="round"/>
+    <path d="M262 156 C240 190 190 210 150 200 C120 194 96 186 78 176" fill="none" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round"/>
+    <!-- backup -->
+    <circle cx="266" cy="70" r="4" fill="#fff" stroke="#9CA3AF" stroke-width="1.5"/><text x="274" y="73" font-size="9" fill="#9CA3AF">Reno</text>
+    <!-- stops -->
+    <g font-size="10" font-weight="600" fill="#111214">
+      <circle cx="78" cy="176" r="6" fill="#111214"/><text x="34" y="196">Home</text>
+      <circle cx="176" cy="132" r="6" fill="#2F6BFF"/><text x="140" y="126">Sacramento</text>
+      <circle cx="240" cy="78" r="7" fill="#2F6BFF" stroke="#fff" stroke-width="2"/><text x="214" y="64">Truckee ☾</text>
+      <circle cx="262" cy="156" r="7" fill="#fff" stroke="#D97706" stroke-width="2.5"/><text x="272" y="160">Mammoth ☾</text>
+    </g>
+  </svg>
+  <div class="mode"><span class="on">Offline</span><span>Online</span></div>
+  <div class="leg"><span><i></i>road</span><span><i class="e"></i>estimated</span></div>
+</div>
+
+<div class="kpis">
+  <div class="kpi acc"><div class="t">Miles</div><div class="n">664</div><span class="d">4 legs</span></div>
+  <div class="kpi"><div class="t">Days</div><div class="n">5</div><span class="d">3 nights</span></div>
+  <div class="kpi"><div class="t">Charging</div><div class="n">$84</div><span class="d warn">est. · 1 leg</span></div>
+</div>
+
+<div class="card">
+  <h2>Stops <a>Refresh est. legs</a></h2>
+  <div class="row"><span class="dot s">S</span><div><div class="n">Home</div><div class="d">Sat · 1442A Grove St</div></div><div class="mi">—</div></div>
+  <div class="row"><span class="dot">1</span><div><div class="n">Sacramento</div><div class="d">Sat · Supercharger · lunch</div></div><div class="mi">88<small>road</small></div></div>
+  <div class="row"><span class="dot">2</span><div><div class="n">Truckee · 2 nights</div><div class="d">Sat–Mon · Hampton Inn · backup Reno</div></div><div class="mi">103<small>road</small></div></div>
+  <div class="row"><span class="dot o">3</span><div><div class="n">Mammoth Lakes · 1 night</div><div class="d">Mon · Hotel TBD</div></div><div class="mi">~155<small class="est">est.</small></div></div>
+  <div class="row"><span class="dot s">H</span><div><div class="n">Home</div><div class="d">Tue · via US-395 / CA-120</div></div><div class="mi">318<small>manual</small></div></div>
+</div>
+
+<div class="card">
+  <h2>Miles per day</h2>
+  <div class="bars">
+    <div class="l">Sat</div><div class="tr"><i style="width:60%"></i></div><div class="v">191</div>
+    <div class="l">Sun</div><div class="tr"><i style="width:0"></i></div><div class="v">0</div>
+    <div class="l">Mon</div><div class="tr"><i class="e" style="width:49%"></i></div><div class="v">~155</div>
+    <div class="l">Tue</div><div class="tr"><i style="width:100%"></i></div><div class="v">318</div>
+  </div>
+</div>
+
+<div class="cta"><button class="btn">Create trip</button></div>
+<p class="ft">Mile Marker · Review mockup v1 · Sep 7 2026</p>
+</div></body></html>

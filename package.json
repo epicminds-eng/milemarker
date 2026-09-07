@@ -1,0 +1,12 @@
+{
+  "name": "milemarker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mile Marker — personal road-trip PWA",
+  "scripts": {
+    "test": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}
