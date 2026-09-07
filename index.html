@@ -95,6 +95,8 @@
   .page{display:none;}
   .page.active{display:block;}
   .appver{text-align:center;font-size:12px;color:var(--tertiary);padding:18px 0 4px;}
+  .restore{margin:calc(var(--s2) * -1) 0 var(--s3);text-align:center;font-size:14px;}
+  .restore a{color:var(--blue);text-decoration:none;}
 
   /* pack */
   .pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;color:#fff;flex:none;}
@@ -119,8 +121,9 @@
   .card.sync{margin-top:16px;}
   .syncform{padding:0 16px 14px;display:flex;flex-direction:column;gap:10px;}
   .syncform label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--secondary);}
-  .syncform input{font-family:inherit;font-size:15px;font-weight:400;padding:9px 12px;border:1px solid var(--sep);border-radius:10px;outline:none;background:var(--cell);color:var(--label);width:100%;}
-  .syncform input:focus{border-color:var(--blue);}
+  .syncform input,.syncform textarea{font-family:inherit;font-size:15px;font-weight:400;padding:9px 12px;border:1px solid var(--sep);border-radius:10px;outline:none;background:var(--cell);color:var(--label);width:100%;}
+  .syncform input:focus,.syncform textarea:focus{border-color:var(--blue);}
+  .syncform textarea{resize:vertical;}
   .syncbtns{display:flex;gap:8px;flex-wrap:wrap;}
   .syncstatus{font-size:13px;color:var(--secondary);min-height:18px;}
   .syncstatus.err{color:var(--red);}
@@ -450,6 +453,7 @@
       <div class="sub" id="tripsSub">Every trip, its route, its pack list and what it cost.</div>
     </div>
     <div class="trips" id="tripsList"></div>
+    <p class="restore" id="restoreRow" hidden><a href="#" id="restoreSF">Restore the SF trip</a></p>
     <button class="newtrip" id="newTripBtn" type="button">+ New trip</button>
     <div class="card sync" id="syncCard">
       <div class="sec-head" style="cursor:default"><span class="t">Sync</span><span class="m" id="syncDeviceBadge"></span></div>
@@ -460,6 +464,16 @@
         <label>This device<input type="text" id="syncDevice" autocapitalize="words" autocomplete="off" placeholder="iPhone"></label>
         <div class="syncbtns"><button class="btn go" id="syncConnect" type="button">Connect</button><button class="btn" id="syncDisconnect" type="button">Disconnect</button></div>
         <div class="syncstatus" id="syncStatus">Not connected</div>
+      </div>
+    </div>
+    <div class="card sync" id="dataCard">
+      <div class="sec-head" style="cursor:default"><span class="t">App data</span></div>
+      <div class="sec-note">Export the whole mileMarker_v1 object, or paste one back in. Import also reads an sf-move export and merges it onto the SF trip.</div>
+      <div class="sec-body syncform">
+        <div class="syncbtns"><button class="btn go" id="dataExport" type="button">Export</button></div>
+        <label>Import<textarea id="dataPaste" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Paste a Mile Marker or sf-move export…"></textarea></label>
+        <div class="syncbtns"><button class="btn" id="dataImport" type="button">Import</button></div>
+        <div class="syncstatus" id="dataStatus">Nothing pasted yet</div>
       </div>
     </div>
   </div>
@@ -592,7 +606,7 @@
     </div>
   </div>
 
-  <div class="appver" id="appVer">Mile Marker v1 · build 2026-09-07 · local</div>
+  <div class="appver" id="appVer">Mile Marker v2 · build 2026-09-07 · 58590a6</div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 </div>
@@ -713,6 +727,7 @@
     t.spend=t.spend||{};t.spend.entries=t.spend.entries||[];t.spend.dismissed=t.spend.dismissed||{};
     t.pack=t.pack||{};t.pack.items=t.pack.items||[];t.pack.packed=t.pack.packed||{};
     t.pack.beforeLeave=t.pack.beforeLeave||[];t.pack.collapsed=t.pack.collapsed||{};
+    if(!t.pack.blSeeded&&!t.pack.beforeLeave.length){t.pack.beforeLeave=DEFAULT_BEFORE_LEAVE();t.pack.blSeeded=true;}
     t.log=t.log||{};t.log.arrived=t.log.arrived||{};t.log.arrivedAt=t.log.arrivedAt||{};t.log.rolled=t.log.rolled||{};
     t.ui=t.ui||{};t.stats=t.stats||{};
     return t;
@@ -1157,7 +1172,7 @@
       card.appendChild(row);
       if(i>0)card.appendChild(stampRow(s));
       var btns=[];
-      if(s.mapsUrl)btns.push('<a class="btn" href="'+esc(s.mapsUrl)+'">Hotel in Apple Maps</a>');
+      if(s.mapsUrl)btns.push('<a class="btn" href="'+esc(s.mapsUrl)+'">'+(s.hotel?"Hotel":(s.home?"Home":"Stop"))+' in Apple Maps</a>');
       if(s.chargerQuery)btns.push('<a class="btn" href="https://maps.apple.com/?q='+encodeURIComponent(s.chargerQuery)+'">Supercharger</a>');
       if(s.hotelUrl)btns.push('<a class="btn go" href="'+esc(s.hotelUrl)+'">Booking</a>');
       if(btns.length)card.appendChild(el("div","btns"+(btns.length>1?" three":""),btns.join("")));
@@ -1455,7 +1470,7 @@
   });
 
   /* ---------- PACK: base template + type templates + this trip's own items ---------- */
-  var BEFORE_LEAVE=[
+  function DEFAULT_BEFORE_LEAVE(){return [   /* seeded into a new trip's pack.beforeLeave; from there it is the trip's own list */
     {id:"bl-charger",t:"Mobile charger + adapters in the car"},
     {id:"bl-walkthrough",t:"Walk-through of the house — every room, closets, garage"},
     {id:"bl-garbage",t:"Take the garbage + recycling out"},
@@ -1465,8 +1480,10 @@
     {id:"bl-locks",t:"Windows locked · doors locked · garage closed"},
     {id:"bl-lights",t:"Lights off · unplug what's not needed"},
     {id:"bl-kane",t:"Kane: fed, walked, kit within reach"}
-  ];
+  ];}
   var packFilter="all",packCards=[];
+  var GROUP_LABEL={car:"Car",ship:"Ship",joey:"Joey"};   /* group ids are stored on the item; these are what the section heads read */
+  function groupLabel(g){return GROUP_LABEL[g]||g;}
   function packItems(){   /* Build 7 fills templates; until then this is just the trip's own list */
     var t=T();if(!t)return [];
     var out=(state.templates.base||[]).slice();
@@ -1490,41 +1507,40 @@
   }
   function renderBeforeLeave(){
     var t=T(),wrap=$("beforeLeave");if(!t||!wrap)return;wrap.innerHTML="";
-    var custom=t.pack.beforeLeave||[];
-    var ids=BEFORE_LEAVE.map(function(i){return i.id;}).concat(custom.map(function(c){return c.id;}));
-    var pdone=ids.filter(function(id){return t.pack.packed[id];}).length;
+    var list=t.pack.beforeLeave||[];
+    var pdone=list.filter(function(i){return t.pack.packed[i.id];}).length;
     var card=el("div","card"+(t.pack.collapsed["bl"]?" closed":""));
     var head=el("div","sec-head");
     head.setAttribute("role","button");head.setAttribute("tabindex","0");
-    head.innerHTML='<span class="t">Before I leave</span><span class="m">'+pdone+'/'+ids.length+' <span class="chev">▼</span></span>';
+    head.innerHTML='<span class="t">Before I leave</span><span class="m">'+pdone+'/'+list.length+' <span class="chev">▼</span></span>';
     var togC=function(){t.pack.collapsed["bl"]=!t.pack.collapsed["bl"];save(state);renderBeforeLeave();};
     head.addEventListener("click",togC);
     head.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();togC();}});
     card.appendChild(head);
     card.appendChild(el("div","sec-note","LAST MORNING — BEFORE THE DOOR LOCKS"));
     var body=el("div","sec-body");
-    function addRow(it,isCustom){
+    function addRow(it){   /* only rows this trip added (own:true) carry a delete — the seeded list stays put */
+      var own=!!it.own;
       var row=el("div","check"+(t.pack.packed[it.id]?" on":""),
-        '<span class="ring">✓</span><span><span class="ct">'+esc(it.t)+'</span></span>'+(isCustom?'<button class="xdel" type="button" aria-label="Delete">×</button>':''));
+        '<span class="ring">✓</span><span><span class="ct">'+esc(it.t)+'</span></span>'+(own?'<button class="xdel" type="button" aria-label="Delete">×</button>':''));
       row.setAttribute("role","checkbox");row.setAttribute("tabindex","0");
       row.setAttribute("aria-checked",t.pack.packed[it.id]?"true":"false");
       var tog=function(){t.pack.packed[it.id]=!t.pack.packed[it.id];save(state);renderBeforeLeave();};
       row.addEventListener("click",tog);
       row.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();tog();}});
-      if(isCustom)row.querySelector(".xdel").addEventListener("click",function(e){
+      if(own)row.querySelector(".xdel").addEventListener("click",function(e){
         e.stopPropagation();
         t.pack.beforeLeave=(t.pack.beforeLeave||[]).filter(function(c){return c.id!==it.id;});
         delete t.pack.packed[it.id];save(state);renderBeforeLeave();
       });
       body.appendChild(row);
     }
-    BEFORE_LEAVE.forEach(function(it){addRow(it,false);});
-    custom.forEach(function(it){addRow(it,true);});
+    list.forEach(function(it){addRow(it);});
     var add=el("div","addrow",'<input type="text" placeholder="Add to Before I leave…" enterkeyhint="done">');
     add.querySelector("input").addEventListener("keydown",function(e){
       if(e.key==="Enter"&&this.value.trim()){
         t.pack.beforeLeave=t.pack.beforeLeave||[];
-        t.pack.beforeLeave.push({id:"bl-ct-"+Date.now(),t:this.value.trim(),group:"Before I leave"});
+        t.pack.beforeLeave.push({id:"bl-ct-"+Date.now(),t:this.value.trim(),own:true});
         save(state);renderBeforeLeave();
       }
     });
@@ -1544,7 +1560,7 @@
       var card=el("div","card"+(t.pack.collapsed["pk-"+g]?" closed":""));
       var head=el("div","sec-head");
       head.setAttribute("role","button");head.setAttribute("tabindex","0");
-      head.innerHTML='<span class="t">'+esc(g)+'</span><span class="m"></span>';
+      head.innerHTML='<span class="t">'+esc(groupLabel(g))+'</span><span class="m"></span>';
       packCards.push({m:head.querySelector(".m"),items:all});
       var togC=function(){t.pack.collapsed["pk-"+g]=!t.pack.collapsed["pk-"+g];save(state);renderPack();};
       head.addEventListener("click",togC);
@@ -2038,6 +2054,180 @@
   var toastT=null;
   function toast(msg){var t=$("toast");if(!t)return;t.textContent=msg;t.classList.add("show");if(toastT)clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove("show");},2600);}
 
+  /* ---------- IMPORT: the SF move as trip #1 ----------
+     Code-seeded from sf-move v55 (epicminds-eng/sf-move, read-only) in its FINAL post-migration shape:
+     STOPS + BACKUPS + WAYPTS + CHARGES + EXPENSES + the seedSpend rows that survived day1PetV1/day1HotelV1
+     (no seed-h1/seed-p1) + BEFORE_LEAVE + the Pack car/ship/joey lists.
+     Stop ids are sf-move's, unchanged: pasted stamps and spend stopIds still match.
+     WAYPTS are split at their stop:<id> markers into per-leg Stop.route polylines, so the map draws the
+     same road-following line sf-move draws.
+     Pack: sf-move keeps each item's car/ship/joey disposition in per-device state (state.disp), not in code —
+     only the catalogue (SORT) and the notes are code. The groups below are that catalogue with the group taken
+     from each item's own note / sub-header / the EXTRA reference verdicts ("Car", "Rides in the car",
+     "Ships or organizes here", "(to Joey)"); items whose note reads leave / sell / donate / DON'T pack are
+     not packed at all and are left out, exactly as sf-move's Pack tab leaves out anything not tagged
+     car/ship/joey. Ids are SORT's, so a pasted sfMoveApp_v1.packed lands on them by construction. */
+  var SF_TRIP_ID="sf-2026";
+  function packList(group,rows){return rows.map(function(r){return{id:r[0],t:r[1],group:group};});}
+  function IMPORT_SF(){
+    var stops=[
+      {id:"start",name:"South Barrington, IL",short:"Start",lat:42.0914,lng:-88.1562,mi:0,miSrc:"manual"},
+      {id:"strobert",name:"Springfield, MO",short:"Springfield",lat:37.2440,lng:-93.2718,mi:505,miSrc:"manual",
+       overnight:true,nights:1,petFee:25,
+       hotel:"Candlewood Suites Springfield · 1920 E Kerr St",
+       detail:"Pets $25/night · kitchen suite · crated dogs OK alone",
+       mapsUrl:"https://maps.apple.com/?address=1920%20E%20Kerr%20St%2C%20Springfield%2C%20MO%2065803",
+       chargerQuery:"Tesla Supercharger Springfield MO",
+       backup:{id:"rolla",name:"Rolla, MO",short:"Rolla",lat:37.9514,lng:-91.7713,chargerQuery:"Tesla Supercharger Rolla MO"},
+       route:[[39.7817,-89.6501],[38.6270,-90.1994],[37.9514,-91.7713],[37.8284,-92.1502]]},
+      {id:"amarillo",name:"Amarillo, TX",short:"Amarillo",lat:35.2220,lng:-101.8313,mi:545,miSrc:"manual",
+       overnight:true,nights:1,petFee:50,
+       hotel:"Hotel TBD",
+       chargerQuery:"Tesla Supercharger Amarillo TX",
+       hotelUrl:"https://www.orbitz.com/Hotel-Search?destination=Amarillo%2C%20Texas",
+       backup:{id:"shamrock",name:"Shamrock, TX",short:"Shamrock",lat:35.2140,lng:-100.2490,chargerQuery:"Tesla Supercharger Shamrock TX"},
+       route:[[36.1540,-95.9928],[35.4676,-97.5164],[35.5262,-98.7076]]},
+      {id:"abq",name:"Albuquerque, NM",short:"Albuquerque",lat:35.099215,lng:-106.590972,mi:289,miSrc:"manual",
+       overnight:true,nights:1,petFee:75,
+       hotel:"Sonesta ES Suites · 3300 Prospect Ave NE",
+       detail:"Check-in 4 PM · call ahead if after 9 PM · pets $75/stay",
+       mapsUrl:"https://maps.apple.com/?address=3300%20Prospect%20Ave%20NE%2C%20Albuquerque%2C%20NM%2087107",
+       hotelUrl:"https://www.orbitz.com/Albuquerque-Hotels-Sonesta-ES-Suites-Albuquerque.h6463.Hotel-Information",
+       chargerQuery:"Tesla Supercharger Albuquerque NM",
+       backup:{id:"santarosa",name:"Santa Rosa, NM",short:"Santa Rosa",lat:34.9381,lng:-104.6825,chargerQuery:"Tesla Supercharger Santa Rosa NM"},
+       route:[[34.9381,-104.6825]]},
+      {id:"moms",name:"Sun Lakes, AZ",short:"Mom's",lat:33.22721,lng:-111.88610,mi:465,miSrc:"manual",
+       overnight:true,nights:1,home:true,
+       mapsUrl:"https://maps.apple.com/?ll=33.22721,-111.88610&q=Mom%27s",
+       route:[[35.1697,-107.8909],[34.9022,-110.1582],[34.2309,-111.3251]]},
+      {id:"la",name:"LA — Seychelle's",short:"LA",lat:34.0525,lng:-118.3720,mi:380,miSrc:"manual",
+       overnight:true,nights:1,home:true,
+       detail:"1127 S Hayworth Ave, Los Angeles, CA 90035",
+       mapsUrl:"https://maps.apple.com/?address=1127%20S%20Hayworth%20Ave%2C%20Los%20Angeles%2C%20CA%2090035",
+       chargerQuery:"Tesla Supercharger Los Angeles CA",
+       route:[[33.6103,-114.5964]]},
+      {id:"sf",name:"San Francisco, CA",short:"SF",lat:37.7757,lng:-122.4400,mi:385,miSrc:"manual",home:true,
+       detail:"1442A Grove St, SF 94117",
+       mapsUrl:"https://maps.apple.com/?address=1442A%20Grove%20St%2C%20San%20Francisco%2C%20CA%2094117",
+       chargerQuery:"Tesla Supercharger San Francisco CA",
+       route:[[35.3733,-119.0187],[35.6175,-119.6945]]}
+    ];
+    /* Supercharger sessions, sf-move's CHARGES verbatim (chg-oasis is planned: hollow node, no Spend row) */
+    var charges=[
+      {id:"chg-oasis",planned:true,name:"Tesla Oasis – Lost Hills, CA",addr:"22422 Highway 46, Lost Hills, CA 93249",lat:35.6175,lng:-119.6945,leg:"LA → SF"},
+      {id:"chg-001",name:"Normal, IL – West Raab Rd",addr:"610 West Raab Rd, Normal, IL 61761",lat:40.5327,lng:-88.9918,date:"2026-09-06",time:"10:27",kwh:29.83,rate:0.35,cost:10.43,min:14},
+      {id:"chg-002",name:"Springfield, IL – South Dirksen",addr:"1501 S Dirksen Pkwy, Springfield, IL 62703",lat:39.7755,lng:-89.6089,date:"2026-09-06",time:"11:41",kwh:43.79,rate:0.36,cost:15.76,min:28},
+      {id:"chg-003",name:"Fenton, MO – Wally's",addr:"950 Assembly Pkwy, Fenton, MO 63026",lat:38.5093,lng:-90.4527,date:"2026-09-06",time:"13:45",kwh:36.59,rate:0.44,cost:16.10,min:21},
+      {id:"chg-004",name:"Rolla, MO",addr:"1705 Martin Springs Dr, Rolla, MO 65401",lat:37.9448,lng:-91.7967,date:"2026-09-06",time:"15:23",kwh:35.66,rate:0.37,cost:13.19,min:21},
+      {id:"chg-005",name:"Springfield, MO – North (Buc-ee's)",addr:"3284 N Mulroy Rd, Springfield, MO 65803",lat:37.2683,lng:-93.2340,date:"2026-09-06",time:"17:14",kwh:45.64,rate:0.37,cost:16.88,min:26},
+      {id:"chg-006",name:"Joplin, MO – Highway 43",addr:"4240 Hwy 43, Joplin, MO 64803",lat:37.0392,lng:-94.5487,date:"2026-09-07",time:"09:35",kwh:36.29,rate:0.37,cost:13.42,min:23},
+      {id:"chg-007",name:"Tulsa, OK – East 41st St",addr:"5726 E 41st St, Tulsa, OK 74135",lat:36.1006,lng:-95.8850,date:"2026-09-07",time:"11:46",kwh:48.25,rate:0.40,cost:19.30,min:33}
+    ];
+    var expenses=[
+      {id:"exp-001",cat:"groceries",amount:10.65,note:"County Market · Springfield IL",date:"2026-09-06",time:"11:48"},
+      {id:"exp-002",cat:"hotel",amount:168.72,note:"Candlewood Suites Springfield · booked Orbitz",date:"2026-09-06",time:"15:39"},
+      {id:"exp-003",cat:"groceries",amount:24.83,note:"Walmart · Springfield MO",date:"2026-09-06",time:"18:40"},
+      {id:"exp-004",cat:"kane",amount:25.00,note:"Pet fee · Candlewood Springfield",date:"2026-09-06",time:"17:49"}
+    ];
+    /* seedSpend's planned rows, minus seed-h1/seed-p1 (retired by day1HotelV1 / day1PetV1) */
+    var ts=Date.parse("2026-09-06T00:00:00Z");
+    function P(id,amount,cat,note,day,stopId,billsLater){
+      return{id:id,amount:amount,cat:cat,note:note,day:day,stopId:stopId,ts:ts,planned:true,billsLater:!!billsLater};
+    }
+    var entries=[
+      P("seed-h2",120,"hotel","Amarillo hotel",2,"amarillo"),
+      P("seed-h3",140,"hotel","Sonesta ES Suites Albuquerque",3,"abq"),
+      P("seed-p2",50,"kane","Pet fee",2,"amarillo"),
+      P("seed-p3",75,"kane","Pet fee · Sonesta",3,"abq"),
+      P("seed-t1",5,"tolls","Illinois Tollway (I-PASS)",1,"strobert",true),
+      P("seed-t2",12,"tolls","Oklahoma turnpikes (Will Rogers + Turner)",2,"amarillo",true),
+      P("seed-m0",240,"misc","Ship Sticks · 3 pieces",0,null)
+    ];
+    var beforeLeave=[
+      {id:"bl-charger",t:"Tesla mobile charger + J1772 adapter in the car"},
+      {id:"bl-walkthrough",t:"Walk-through of the house — every room, closets, garage"},
+      {id:"bl-garbage",t:"Take the garbage + recycling out"},
+      {id:"bl-eco",t:"Set the house to Eco (thermostat)"},
+      {id:"bl-waterheater",t:"Water heater to vacation mode"},
+      {id:"bl-fridge",t:"Fridge emptied · perishables gone"},
+      {id:"bl-locks",t:"Windows locked · doors locked · garage closed"},
+      {id:"bl-lights",t:"Lights off · unplug what's not needed"},
+      {id:"bl-firstweek",t:"First-week box in last, on top"},
+      {id:"bl-kane",t:"Kane: fed, walked, kit within reach"}
+    ];
+    var items=[].concat(
+      packList("car",[
+        ["g-bag","Gamer bag + current clubs"],["g-shoes","Golf shoes"],["g-gps","Golf GPS / rangefinder"],
+        ["g-glove","Gloves (playing)"],["g-balls","Balls + tees + essentials pouch"],["g-rain","Rain gear / umbrella"],
+        ["w-bodies","Camera bodies (Canon)"],["w-lenses","Lenses"],["w-batteries","Batteries + chargers + card readers"],
+        ["w-cards","Memory cards"],["w-macbook","M5 MacBook Pro"],["w-drives","PRO-G40 + all backup drives"],
+        ["w-tripods","Tripods / stands / rigs"],["w-audio","Mics / audio kit"],["w-imac","iMac"],
+        ["w-monitor","External monitor + arm"],["w-vision","Vision Pro"],["w-homepod","HomePod"],
+        ["w-hue","Hue bridge + smart bulbs"],["w-lapdesk","Lap desk"],["w-lamp","Cordless table lamp"],
+        ["c-rain","Rain shell / waterproof jacket"],["c-coat","Warm coat"],["c-light-jacket","Light jacket / overshirt"],
+        ["c-hoodies","Hoodies / sweatshirts"],["c-sweaters","Sweaters / knits"],["c-tees","T-shirts"],
+        ["c-longsleeve","Long-sleeve / henleys"],["c-buttonup","Button-ups / nicer shirts"],["c-base","Base layers / thermals"],
+        ["c-jeans","Jeans / everyday pants"],["c-chinos","Chinos / nicer pants"],["c-shorts","Shorts (summer)"],
+        ["c-gym-top","Workout tops"],["c-gym-bottom","Shorts / joggers"],["c-gym-socks","Athletic socks"],
+        ["c-gloves","Gloves"],["c-beanie","Beanie / warm hat"],["c-cap","Cap / sun hat (summer)"],["c-scarf","Scarf"],
+        ["c-socks","Everyday socks"],["c-underwear","Underwear"],["c-boots","Boots"],["c-sneakers","Everyday sneakers"],
+        ["c-dress","Dress / nicer shoes"],["c-sandals","Sandals / summer shoes"],
+        ["wo-15","15 lb dumbbell pair"],["wo-10","10 lb dumbbell pair"],
+        ["k-knives","Knives + cutting board"],["k-castiron","Cast iron skillet"],["k-pans","Daily pans (wok / grill pan / skillet)"],
+        ["k-coffee","Coffee setup"],["k-bottles","Water bottles (Hydro Flask / Yeti)"],["k-yeti","YETI cooler"],
+        ["r-skates","Rollerblades"],["r-pads","Pads (knee / elbow / wrist)"],["r-helmet","Helmet"],["r-tool","Skate tool / Allen keys"],
+        ["h-towels","Three good towels"],["h-toiletries","All toiletries + essentials"],
+        ["h-firstnight","First-night toiletry bag — packed separately"],["h-rx","Prescriptions refilled before the drive"],
+        ["h-bags","Clear plastic zip bags (packing supply)"],
+        ["d-passport","Passport"],["d-birth","Birth certificate"],["d-ssn","Social Security card"],
+        ["d-title","Tesla title + registration"],["d-carloan","Purchase / loan paperwork"],
+        ["d-tax","Tax returns (last few years)"],["d-checks","Checkbooks + spare cards"],["d-policies","Insurance policies"],
+        ["d-estate","Wills / POA / trust docs (if any)"],["d-medical","Medical records"],["d-kane","Kane's records / papers"],
+        ["d-cash","Cash reserve"],["d-valuables","Jewelry / small valuables"],["d-sentimental","Sentimental irreplaceables"],
+        ["d-2fa","2FA / password recovery codes"],["d-crypto","Seed phrases / hardware wallet (if any)"],
+        ["d-keys","Spare house / safe keys"]
+      ]),
+      packList("ship",[
+        ["g-launch","Launch monitor (Approach)"],["g-net","Hitting net"],["g-mats","Hitting mats + putting green"],
+        ["g-headcovers","Headcover collection"],["g-shelf","Ball / accessory shelf stock"],
+        ["c-summer-box","Summer overflow box"],
+        ["k-airfryer","Typhur air fryer"],["k-blender","Blender (Ninja)"],["k-containers","Food storage containers"],
+        ["k-utensils","Cooking utensils + tools"],["k-pepper","Pepper mill + spices"],["k-supplements","Supplement shelf"],
+        ["k-insmeer","Insmeer cooler"],
+        ["r-wheels","Spare wheels"],["r-bearings","Spare bearings"],["r-laces","Spare laces / liners"],["r-bag","Skate bag / backpack"]
+      ]),
+      packList("joey",[
+        ["h-suitcase1","Suitcase 1 (to Joey)"],["h-suitcase2","Suitcase 2 (to Joey)"]
+      ])
+    );
+    return normalizeTrip({
+      id:SF_TRIP_ID,
+      name:"Chicago → San Francisco",
+      status:"live",
+      departDate:"2026-09-06",
+      endDate:"",
+      vehicle:{id:"v-my",type:"ev",name:"Model Y",kwhPerMi:0.27,epaWhMi:270},
+      types:["kane"],
+      stops:stops,
+      waypts:[],
+      charges:charges,
+      expenses:expenses,
+      spend:{entries:entries,dismissed:{}},
+      pack:{items:items,packed:{},beforeLeave:beforeLeave,collapsed:{},blSeeded:true},
+      log:{arrived:{},arrivedAt:{},rolled:{}},
+      ui:{},
+      stats:{}
+    });
+  }
+  function seedSFTrip(){   /* adds the SF trip and makes it active; returns it */
+    var t=IMPORT_SF();
+    state.trips[t.id]=t;
+    state.meta.sfSeededV1=true;
+    setActive(t.id);
+    saveSeed(state);
+    return t;
+  }
+
   /* ---------- TRIPS list: the launch screen ---------- */
   var STATUS_LABEL={planning:"Planning",live:"Live",done:"Done"},STATUS_RANK={live:0,planning:1,done:2};
   function tripSummary(t){   /* miles · days · actual spend, computed without touching the active-trip route model */
@@ -2049,13 +2239,18 @@
       var span=Math.round((parseYMD(t.endDate)-parseYMD(t.departDate))/86400000)+1;
       if(span>days)days=span;
     }
-    var spent=0;((t.spend&&t.spend.entries)||[]).forEach(function(e){if(!e.planned)spent+=e.amount;});
+    /* charges + expenses only become Spend entries when the trip is opened, so count the ones
+       that have not been seeded yet (minus anything the user dismissed) — the card is right on first paint */
+    var spent=0,have={},dis=(t.spend&&t.spend.dismissed)||{};
+    ((t.spend&&t.spend.entries)||[]).forEach(function(e){have[e.id]=true;if(!e.planned)spent+=e.amount;});
+    (t.charges||[]).forEach(function(c){if(!c.planned&&c.date&&!have[c.id]&&!dis[c.id])spent+=+c.cost||0;});
+    (t.expenses||[]).forEach(function(x){if(x.date&&!have[x.id]&&!dis[x.id])spent+=+x.amount||0;});
     return{mi:mi,days:days,spent:spent};
   }
   function tripDates(t){
     if(!isYMD(t.departDate))return "No dates yet";
     var a=parseYMD(t.departDate);
-    if(!isYMD(t.endDate))return fmtDay(a);
+    if(!isYMD(t.endDate))return fmtShort(a)+" – …";
     var b=parseYMD(t.endDate);
     return fmtShort(a)+" – "+fmtShort(b)+", "+b.getFullYear();
   }
@@ -2116,6 +2311,116 @@
   }
   $("newTripBtn").addEventListener("click",openBasics);
 
+  /* ---------- APP DATA: export the whole store, import a Mile Marker export or an sf-move one ----------
+     sf-move's Export is its raw localStorage object `sfMoveApp_v1` pretty-printed; an sf-move paste is
+     merged onto trip "sf-2026" only (seeded from IMPORT_SF first if it is missing) and never onto any
+     other trip. Move and Sort are gone, so done/disp/notes/removed/collapsed/custom are ignored. */
+  function exportText(){
+    var raw=null;
+    try{raw=window.localStorage.getItem(KEY);}catch(e){}
+    var obj;try{obj=raw?JSON.parse(raw):state;}catch(e2){obj=state;}
+    return JSON.stringify(obj,null,2);
+  }
+  function showDataModal(txt){
+    var back=el("div","modal-back",
+      '<div class="modal"><h2>App data — mileMarker_v1</h2>'+
+      '<div class="mbtns"><button class="btn" id="dmAll" type="button">Select all</button></div>'+
+      '<textarea readonly></textarea>'+
+      '<div class="mbtns"><button class="btn go" id="dmDone" type="button">Done</button></div></div>');
+    var ta=back.querySelector("textarea");ta.value=txt;
+    back.addEventListener("click",function(e){if(e.target===back)back.remove();});
+    back.querySelector("#dmDone").addEventListener("click",function(){back.remove();});
+    back.querySelector("#dmAll").addEventListener("click",function(){ta.focus();ta.select();try{ta.setSelectionRange(0,ta.value.length);}catch(e){}});
+    document.body.appendChild(back);
+    ta.focus();try{ta.setSelectionRange(0,txt.length);}catch(e){}
+  }
+  function exportShare(){
+    var txt=exportText();
+    if(navigator.share){
+      var shared=null;
+      try{
+        var fl=new File([txt],"mile-marker-export.json",{type:"application/json"});
+        if(navigator.canShare&&navigator.canShare({files:[fl]}))shared=navigator.share({files:[fl],title:"Mile Marker data"});
+      }catch(e){}
+      if(!shared)shared=navigator.share({title:"Mile Marker data",text:txt});
+      shared.catch(function(err){if(!(err&&err.name==="AbortError"))showDataModal(txt);});
+    }else showDataModal(txt);
+  }
+  function isMileMarkerExport(o){return !!(o&&typeof o==="object"&&o.trips&&typeof o.trips==="object");}
+  function isSfMoveExport(o){return !!(o&&typeof o==="object"&&!o.trips&&((o.trip&&o.trip.arrived)||(o.spend&&Array.isArray(o.spend.entries))));}
+  function sfTrip(){   /* the SF trip, seeded from IMPORT_SF if this install never had it */
+    if(!state.trips[SF_TRIP_ID]){state.trips[SF_TRIP_ID]=IMPORT_SF();state.meta.sfSeededV1=true;}
+    return state.trips[SF_TRIP_ID];
+  }
+  function mergeSfMove(o){   /* pasted state wins; idempotent — a second paste changes no leaf */
+    var t=sfTrip(),n={stamps:0,packed:0,rows:0,budget:null};
+    var pt=o.trip||{},ps=o.spend||{};
+    ["arrived","arrivedAt","rolled"].forEach(function(k){
+      var src=pt[k]||{};
+      Object.keys(src).forEach(function(id){
+        if(src[id]===undefined||src[id]===null||src[id]===false)return;
+        if(t.log[k][id]!==src[id]){t.log[k][id]=src[id];}
+        if(k==="arrived")n.stamps++;
+      });
+    });
+    if(isYMD(pt.departDate))t.departDate=pt.departDate;
+    Object.keys(o.packed||{}).forEach(function(id){if(o.packed[id]){if(!t.pack.packed[id])t.pack.packed[id]=true;n.packed++;}});
+    var blHave={};t.pack.beforeLeave.forEach(function(i){blHave[i.id]=true;});
+    ((o.customTasks||{}).bl||[]).forEach(function(c){if(c&&c.id&&!blHave[c.id]){t.pack.beforeLeave.push({id:c.id,t:c.t,own:true});blHave[c.id]=true;}});
+    var dis={};
+    [ps.dismissedCharges,ps.dismissedExpenses].forEach(function(m){Object.keys(m||{}).forEach(function(k){if(m[k])dis[k]=true;});});
+    var byId={};t.spend.entries.forEach(function(e,i){byId[e.id]=i;});
+    (ps.entries||[]).forEach(function(e){
+      if(!e||!e.id)return;
+      if(dis[e.id])return;                                   /* dismissed rows land in spend.dismissed, not in entries */
+      var row=JSON.parse(JSON.stringify(e));
+      if(byId[row.id]!==undefined)t.spend.entries[byId[row.id]]=row;   /* same id → replace: confirmed amounts + planned:false arrive here */
+      else{byId[row.id]=t.spend.entries.length;t.spend.entries.push(row);}
+      n.rows++;
+    });
+    Object.keys(dis).forEach(function(k){
+      t.spend.dismissed[k]=true;
+      if(byId[k]!==undefined){t.spend.entries=t.spend.entries.filter(function(x){return x.id!==k;});byId={};t.spend.entries.forEach(function(x,i){byId[x.id]=i;});}
+    });
+    if(+ps.budget>0){t.spend.budget=+ps.budget;n.budget=+ps.budget;}
+    if(o.stats&&typeof o.stats==="object")t.stats=JSON.parse(JSON.stringify(o.stats));
+    normalizeTrip(t);
+    t.status=tripStatus(t);
+    setActive(SF_TRIP_ID);
+    save(state);
+    return n;
+  }
+  function importPasted(){
+    var ta=$("dataPaste"),st=$("dataStatus"),txt=String(ta.value||"").trim();
+    if(!txt){st.textContent="Nothing pasted yet";return;}
+    var o=null;try{o=JSON.parse(txt);}catch(e){st.textContent="That is not JSON I can read.";return;}
+    if(isMileMarkerExport(o)){
+      if(!window.confirm("Replace everything on this device with the pasted Mile Marker data?")){st.textContent="Import cancelled";return;}
+      try{window.localStorage.setItem(KEY,JSON.stringify(o));}catch(e){}
+      location.reload();return;
+    }
+    if(isSfMoveExport(o)){
+      var n=mergeSfMove(o);
+      ta.value="";
+      renderTrips();refreshRestore();
+      st.textContent="sf-move data merged onto the SF trip";
+      toast("Imported · "+n.stamps+" stamps · "+n.packed+" packed · "+n.rows+" spend rows"+(n.budget?" · budget "+money(n.budget):""));
+      return;
+    }
+    st.textContent="I don't recognise that export.";
+  }
+  function refreshRestore(){
+    var row=$("restoreRow");if(!row)return;
+    row.hidden=!!state.trips[SF_TRIP_ID];
+  }
+  $("dataExport").addEventListener("click",exportShare);
+  $("dataImport").addEventListener("click",importPasted);
+  $("restoreSF").addEventListener("click",function(ev){
+    ev.preventDefault();
+    if(state.trips[SF_TRIP_ID])return;
+    seedSFTrip();renderTrips();refreshRestore();toast("SF trip restored");
+  });
+
   /* ---------- screens + tabs ---------- */
   var pages=["trip","pack","spend"];
   var scrollEl=$("scroll"),scrollPos={},curPage="trip";
@@ -2133,7 +2438,7 @@
     pages.forEach(function(q){$("page-"+q).classList.remove("active");});
     $("page-trips").classList.add("active");
     curPage="trips";
-    renderTrips();
+    renderTrips();refreshRestore();
     scrollEl.scrollTop=scrollPos.trips||0;
   }
   function openTrip(id){
@@ -2168,6 +2473,10 @@
   }
 
   /* ---------- boot ---------- */
+  /* one-time: a brand-new install opens on the SF trip. An install that already made trips is left alone —
+     "Restore the SF trip" at the bottom of the Trips list does the same thing on demand. */
+  if(!Object.keys(state.trips).length&&!state.meta.sfSeededV1)seedSFTrip();
+  refreshRestore();
   buildRoute();
   if(activeTripId&&state.trips[activeTripId]){
     document.body.classList.remove("listview");

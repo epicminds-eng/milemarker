@@ -1,0 +1,294 @@
+{
+  "done": {},
+  "disp": {
+    "g-bag": "car",
+    "r-skates": "car"
+  },
+  "notes": {},
+  "custom": {},
+  "removed": {},
+  "collapsed": {},
+  "packed": {
+    "g-bag": true,
+    "r-skates": true
+  },
+  "customTasks": {},
+  "trip": {
+    "arrived": {
+      "strobert": true,
+      "amarillo": true
+    },
+    "tracking": false,
+    "rolled": {
+      "strobert": "2026-09-06T08:30"
+    },
+    "arrivedAt": {
+      "strobert": "2026-09-06T17:49",
+      "amarillo": "2026-09-07T18:42"
+    },
+    "arrivedAtV1": true,
+    "rolledV1": true,
+    "departDate": "2026-09-06",
+    "dateMigratedV1": true,
+    "dateMigratedV2": true,
+    "day2AmarilloV1": true
+  },
+  "meta": {
+    "touched": {
+      "trip.arrived.strobert": 0,
+      "trip.rolled.strobert": 0,
+      "trip.arrivedAt.strobert": 0,
+      "trip.arrivedAtV1": 0,
+      "trip.rolledV1": 0,
+      "trip.departDate": 0,
+      "trip.dateMigratedV1": 0,
+      "trip.dateMigratedV2": 0,
+      "trip.day2AmarilloV1": 0,
+      "spend.day1PetV1": 0,
+      "spend.day1HotelV1": 0,
+      "spend.entries.seed-h2": 0,
+      "spend.entries.seed-h3": 0,
+      "spend.entries.seed-p2": 0,
+      "spend.entries.seed-p3": 0,
+      "spend.entries.seed-t1": 0,
+      "spend.entries.seed-t2": 0,
+      "spend.entries.seed-m0": 0,
+      "spend.seededV1": 0,
+      "spend.entries.chg-001": 0,
+      "spend.entries.chg-002": 0,
+      "spend.entries.chg-003": 0,
+      "spend.entries.chg-004": 0,
+      "spend.entries.chg-005": 0,
+      "spend.entries.chg-006": 0,
+      "spend.entries.chg-007": 0,
+      "spend.entries.exp-001": 0,
+      "spend.entries.exp-002": 0,
+      "spend.entries.exp-003": 0,
+      "spend.entries.exp-004": 0,
+      "disp.g-bag": 1788806519027,
+      "disp.r-skates": 1788806519226,
+      "packed.g-bag": 1788806519815,
+      "packed.r-skates": 1788806519911,
+      "trip.arrived.amarillo": 1788806520528,
+      "trip.arrivedAt.amarillo": 1788806520528,
+      "spend.budget": 1788806521645
+    },
+    "stamped": true
+  },
+  "spend": {
+    "entries": [
+      {
+        "id": "seed-h2",
+        "amount": 120,
+        "cat": "hotel",
+        "note": "Amarillo hotel",
+        "day": 2,
+        "stopId": "amarillo",
+        "ts": 1788806518647,
+        "planned": true,
+        "billsLater": false
+      },
+      {
+        "id": "seed-h3",
+        "amount": 140,
+        "cat": "hotel",
+        "note": "Sonesta ES Suites Albuquerque",
+        "day": 3,
+        "stopId": "abq",
+        "ts": 1788806518647,
+        "planned": true,
+        "billsLater": false
+      },
+      {
+        "id": "seed-p2",
+        "amount": 50,
+        "cat": "kane",
+        "note": "Pet fee",
+        "day": 2,
+        "stopId": "amarillo",
+        "ts": 1788806518647,
+        "planned": true,
+        "billsLater": false
+      },
+      {
+        "id": "seed-p3",
+        "amount": 75,
+        "cat": "kane",
+        "note": "Pet fee · Sonesta",
+        "day": 3,
+        "stopId": "abq",
+        "ts": 1788806518647,
+        "planned": true,
+        "billsLater": false
+      },
+      {
+        "id": "seed-t1",
+        "amount": 5,
+        "cat": "tolls",
+        "note": "Illinois Tollway (I-PASS)",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788806518647,
+        "planned": true,
+        "billsLater": true
+      },
+      {
+        "id": "seed-t2",
+        "amount": 12,
+        "cat": "tolls",
+        "note": "Oklahoma turnpikes (Will Rogers + Turner)",
+        "day": 2,
+        "stopId": "amarillo",
+        "ts": 1788806518647,
+        "planned": true,
+        "billsLater": true
+      },
+      {
+        "id": "seed-m0",
+        "amount": 240,
+        "cat": "misc",
+        "note": "Ship Sticks · 3 pieces",
+        "day": 0,
+        "stopId": null,
+        "ts": 1788806518647,
+        "planned": true,
+        "billsLater": false
+      },
+      {
+        "id": "chg-001",
+        "amount": 10.43,
+        "cat": "charging",
+        "note": "Normal, IL – West Raab Rd",
+        "day": 1,
+        "stopId": "start",
+        "ts": 1788690420000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 29.83
+      },
+      {
+        "id": "chg-002",
+        "amount": 15.76,
+        "cat": "charging",
+        "note": "Springfield, IL – South Dirksen",
+        "day": 1,
+        "stopId": "start",
+        "ts": 1788694860000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 43.79
+      },
+      {
+        "id": "chg-003",
+        "amount": 16.1,
+        "cat": "charging",
+        "note": "Fenton, MO – Wally's",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788702300000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 36.59
+      },
+      {
+        "id": "chg-004",
+        "amount": 13.19,
+        "cat": "charging",
+        "note": "Rolla, MO",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788708180000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 35.66
+      },
+      {
+        "id": "chg-005",
+        "amount": 16.88,
+        "cat": "charging",
+        "note": "Springfield, MO – North (Buc-ee's)",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788714840000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 45.64
+      },
+      {
+        "id": "chg-006",
+        "amount": 13.42,
+        "cat": "charging",
+        "note": "Joplin, MO – Highway 43",
+        "day": 2,
+        "stopId": "strobert",
+        "ts": 1788773700000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 36.29
+      },
+      {
+        "id": "chg-007",
+        "amount": 19.3,
+        "cat": "charging",
+        "note": "Tulsa, OK – East 41st St",
+        "day": 2,
+        "stopId": "strobert",
+        "ts": 1788781560000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 48.25
+      },
+      {
+        "id": "exp-001",
+        "amount": 10.65,
+        "cat": "groceries",
+        "note": "County Market · Springfield IL",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788695280000,
+        "planned": false,
+        "billsLater": false
+      },
+      {
+        "id": "exp-002",
+        "amount": 168.72,
+        "cat": "hotel",
+        "note": "Candlewood Suites Springfield · booked Orbitz",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788709140000,
+        "planned": false,
+        "billsLater": false
+      },
+      {
+        "id": "exp-003",
+        "amount": 24.83,
+        "cat": "groceries",
+        "note": "Walmart · Springfield MO",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788720000000,
+        "planned": false,
+        "billsLater": false
+      },
+      {
+        "id": "exp-004",
+        "amount": 25,
+        "cat": "kane",
+        "note": "Pet fee · Candlewood Springfield",
+        "day": 1,
+        "stopId": "strobert",
+        "ts": 1788716940000,
+        "planned": false,
+        "billsLater": false
+      }
+    ],
+    "day1PetV1": true,
+    "day1HotelV1": true,
+    "seededV1": true,
+    "nowDay": 2,
+    "openDay": 2,
+    "budget": 1500
+  },
+  "stats": {}
+}
