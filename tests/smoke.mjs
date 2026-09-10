@@ -54,6 +54,56 @@ const FIXTURE = {
   stats: {}
 };
 
+/* A trip as Build 2 left it: sf-move v55 stops (abq and la, which v107 dropped), an Arrived stamp
+   on abq, 7 charges plus one logged on the phone, the old planned rows — one of them confirmed by
+   hand — and no seedRev. Boot must bring it forward without losing any of that. */
+const buildTwoShapedState = () => ({
+  settings: { units: "mi", currency: "USD", mapMode: "offline",
+    vehicles: [{ id: "v-my", name: "Model Y", type: "ev", kwhPerMi: 0.27, epaWhMi: 270 }], defaultVehicleId: "v-my" },
+  templates: { base: [], byType: {} },
+  trips: {
+    "sf-2026": {
+      id: "sf-2026", name: "Chicago → San Francisco", status: "live",
+      departDate: "2026-09-06", endDate: "",
+      vehicle: { id: "v-my", type: "ev", name: "Model Y", kwhPerMi: 0.27, epaWhMi: 270 },
+      types: ["kane"],
+      stops: [
+        { id: "start", name: "South Barrington, IL", short: "Start", lat: 42.0914, lng: -88.1562, mi: 0, miSrc: "manual" },
+        { id: "strobert", name: "Springfield, MO", short: "Springfield", lat: 37.244, lng: -93.2718, mi: 505, miSrc: "manual", overnight: true, nights: 1 },
+        { id: "amarillo", name: "Amarillo, TX", short: "Amarillo", lat: 35.222, lng: -101.8313, mi: 545, miSrc: "manual", overnight: true, nights: 1, hotel: "Hotel TBD" },
+        { id: "abq", name: "Albuquerque, NM", short: "Albuquerque", lat: 35.099215, lng: -106.590972, mi: 289, miSrc: "manual", overnight: true, nights: 1 },
+        { id: "moms", name: "Sun Lakes, AZ", short: "Mom's", lat: 33.22721, lng: -111.8861, mi: 465, miSrc: "manual", overnight: true, nights: 1, home: true },
+        { id: "la", name: "LA — Seychelle's", short: "LA", lat: 34.0525, lng: -118.372, mi: 380, miSrc: "manual", overnight: true, nights: 1, home: true },
+        { id: "sf", name: "San Francisco, CA", short: "SF", lat: 37.7757, lng: -122.44, mi: 385, miSrc: "manual", home: true }
+      ],
+      waypts: [],
+      charges: [
+        ...["001,Normal,40.5327,-88.9918,10:27,10.43", "002,Springfield IL,39.7755,-89.6089,11:41,15.76",
+            "003,Fenton,38.5093,-90.4527,13:45,16.10", "004,Rolla,37.9448,-91.7967,15:23,13.19",
+            "005,Springfield MO,37.2683,-93.2340,17:14,16.88"].map(r => {
+          const [n, name, lat, lng, time, cost] = r.split(",");
+          return { id: `chg-${n}`, name, addr: name, lat: +lat, lng: +lng, date: "2026-09-06", time, kwh: 30, rate: 0.4, cost: +cost, min: 20 };
+        }),
+        { id: "chg-006", name: "Joplin, MO", addr: "Joplin", lat: 37.0392, lng: -94.5487, date: "2026-09-07", time: "09:35", kwh: 36.29, rate: 0.37, cost: 13.42, min: 23 },
+        { id: "chg-007", name: "Tulsa, OK", addr: "Tulsa", lat: 36.1006, lng: -95.885, date: "2026-09-07", time: "11:46", kwh: 48.25, rate: 0.4, cost: 19.3, min: 33 },
+        { id: "chg-local", name: "Logged on the phone", addr: "Somewhere", lat: 36.0, lng: -96.0, date: "2026-09-07", time: "12:30", kwh: 10, rate: 0.4, cost: 4, min: 8 }
+      ],
+      expenses: [{ id: "exp-001", cat: "groceries", amount: 10.65, note: "County Market · Springfield IL", date: "2026-09-06", time: "11:48" }],
+      spend: {
+        entries: [
+          { id: "seed-p2", amount: 50, cat: "kane", note: "Pet fee", day: 2, stopId: "amarillo", ts: 1, planned: true, billsLater: false },
+          { id: "seed-p3", amount: 42, cat: "kane", note: "Pet fee · confirmed by hand", day: 3, stopId: "abq", ts: 1, planned: false, billsLater: false },
+          { id: "seed-m0", amount: 240, cat: "misc", note: "Ship Sticks · 3 pieces", day: 0, stopId: null, ts: 1, planned: true, billsLater: false }
+        ], dismissed: {}
+      },
+      pack: { items: [], packed: {}, beforeLeave: [], collapsed: {}, blSeeded: true },
+      log: { arrived: { strobert: true, abq: true }, arrivedAt: { strobert: "2026-09-06T17:49", abq: "2026-09-08T16:30" }, rolled: { strobert: "2026-09-06T08:30" } },
+      ui: {}, stats: {}
+    }
+  },
+  meta: { touched: {}, stamped: true, sfSeededV1: true }
+});
+
 const seed = () => ({
   settings: { units: "mi", currency: "USD", mapMode: "offline",
     vehicles: [{ id: "v-my", name: "Model Y", type: "ev", kwhPerMi: 0.27, epaWhMi: 270 }], defaultVehicleId: "v-my" },
@@ -196,30 +246,44 @@ const run = async () => {
   eq("opened on the SF trip", await page.evaluate(() => localStorage.getItem("mileMarkerActive")), "sf-2026");
   eq("SF trip name", await page.locator("#tripName").innerText(), "Chicago → San Francisco");
   const sf = await page.evaluate(() => ({
-    total: RT.TOTAL, days: RT.DAYS, stops: RT.stops.length, wp: RT.WP.length,
+    rev: IMPORT_SF.rev, seedRev: T().seedRev,
+    total: RT.TOTAL, seedTotal: IMPORT_SF().stops.reduce((a, s) => a + (+s.mi || 0), 0),
+    days: RT.DAYS, stops: RT.stops.length, wp: RT.WP.length,
     charges: T().charges.length, real: realCharges().length, planned: T().charges.filter(c => c.planned).length,
+    seedReal: IMPORT_SF().charges.filter(c => !c.planned).length,
     ids: T().stops.map(s => s.id).join(","),
+    tz: T().stops.map(s => s.tz).join(","),
     pct: routePos() / RT.TOTAL * 100, pos: routePos(),
-    seeded: !!state.meta.sfSeededV1
+    seeded: !!state.meta.sfSeededV1,
+    /* the furthest logged charger, the same way routePos picks it */
+    furthest: (() => { let best = null, bm = -1;
+      T().charges.forEach(c => { if (c.planned || !c.date) return;
+        const l = locate({ lat: +c.lat, lng: +c.lng });
+        if (l && l.miles > bm && l.miles <= RT.TOTAL) { bm = l.miles; best = c; } });
+      return best ? best.id + "|" + best.name : "none"; })()
   }));
-  eq("TOTAL 2,569 mi", sf.total, 2569);
+  eq("seed revision recorded", sf.rev, "sf-move v107 0d8b246");
+  eq("trip carries the seed revision", sf.seedRev, sf.rev);
+  eq("TOTAL == the sum of IMPORT_SF's legs", sf.total, sf.seedTotal);
   eq("6 days", sf.days, 6);
-  eq("stop ids kept from sf-move", sf.ids, "start,strobert,amarillo,abq,moms,la,sf");
-  eq("WAYPTS rebuilt as per-leg routes", sf.wp, 21);
-  /* IMPORT_SF's real session count — sf-move v55 logs chg-001…chg-007 plus the planned chg-oasis */
-  eq("charges = IMPORT_SF's sessions", sf.charges, 8);
-  eq("7 logged sessions, 1 planned", `${sf.real}/${sf.planned}`, "7/1");
+  eq("v107 stop ids", sf.ids, "start,strobert,amarillo,holbrook,moms,coalinga,sf");
+  eq("Stop.tz carried as data", sf.tz,
+    "America/Chicago,America/Chicago,America/Chicago,America/Phoenix,America/Phoenix,America/Los_Angeles,America/Los_Angeles");
+  eq("WAYPTS rebuilt as per-leg routes", sf.wp, 23);
+  eq("charges = IMPORT_SF's sessions", sf.real, sf.seedReal);
+  eq("1 planned charger", sf.planned, 1);
   eq("meta.sfSeededV1 flagged", sf.seeded, true);
   const sfProg = await page.locator("#tripProg").innerText();
-  ok("progress strip shows 2,569 mi", sfProg.includes("2,569 mi"), sfProg.split("\n")[1]);
-  /* furthest logged charger is Tulsa (chg-007), so the ring sits past Springfield at 27% */
-  eq("progress % on the flag", `${Math.round(sf.pct)}%`, "27%");
+  ok(`progress strip shows ${sf.total.toLocaleString()} mi`, sfProg.includes(sf.total.toLocaleString()), sfProg.split("\n")[1]);
+  eq("furthest logged charger is Castaic", sf.furthest.split("|")[0], "chg-027");
+  ok("Castaic is the Castaic, CA session", /Castaic/.test(sf.furthest), sf.furthest);
   const dots = await page.evaluate(() => [...document.querySelectorAll("#tripProg .tps")].map(d => d.className));
   eq("7 stop dots", dots.length, 7);
-  ok("Springfield passed", dots[1].includes("on"), dots.join(" | "));
-  ok("Amarillo not yet passed", dots[2].includes("up"), dots.join(" | "));
+  ok("Mom's passed", dots[4].includes("on"), dots.join(" | "));
+  ok("SF not yet reached", dots[6].includes("up"), dots.join(" | "));
   const sfChg = await page.locator("#chgRow .chgh").innerText();
-  ok("charging row: 7 stops, 1 planned", /7\s+stops/.test(sfChg) && sfChg.includes("1 planned"), sfChg.replace(/\n/g, " | "));
+  ok(`charging row: ${sf.real} stops, 1 planned`,
+    new RegExp(`${sf.real}\\s+stops`).test(sfChg) && sfChg.includes("1 planned"), sfChg.replace(/\n/g, " | "));
   await page.locator("#nav-spend").click();
   await page.waitForSelector("#page-spend.active");
   const day1 = await page.locator('#spendDays .spday[data-day="1"] .dayh b').innerText();
@@ -227,14 +291,16 @@ const run = async () => {
   await page.locator("#nav-pack").click();
   await page.waitForSelector("#page-pack.active");
   const packGroups = await page.evaluate(() => [...document.querySelectorAll("#packGroups .sec-head .t")].map(e => e.textContent));
-  eq("Pack groups Car · Ship · Joey", packGroups.slice(0, 3).join(","), "Car,Ship,Joey");
+  /* Pack items come from a pasted `disp`, never from the seed — a fresh install has none */
+  eq("no seeded pack groups", packGroups.join(","), "This trip");
   ok('Before I leave has the bl-* list', (await page.locator("#beforeLeave .sec-head .m").innerText()).startsWith("0/10"),
     await page.locator("#beforeLeave .sec-head .m").innerText());
   await page.locator("#nav-back").click();
   await page.waitForSelector("#page-trips.active");
   const sfCard = (await page.locator(".trcard").first().innerText()).replace(/\n/g, " · ");
-  ok("Trips card: Live · Sept 6 – … · 2,569 mi · 6 days · $334",
-    /Live/.test(sfCard) && /Sept 6 – …/.test(sfCard) && /2,569 mi · 6 days · \$334/.test(sfCard), sfCard);
+  ok(`Trips card: Live · Sept 6 – … · ${sf.total.toLocaleString()} mi · 6 days`,
+    /Live/.test(sfCard) && /Sept 6 – …/.test(sfCard) &&
+    new RegExp(`${sf.total.toLocaleString()} mi · 6 days · \\$`).test(sfCard), sfCard);
   ok("no console errors on the seeded SF trip", errors.length === 0, errors.join(" | "));
   await page.screenshot({ path: join(SHOTS, "05-trips-sf.png") });
   await page.locator(".trcard").first().click();
@@ -255,7 +321,9 @@ const run = async () => {
   await page.waitForFunction(() => /merged/.test(document.getElementById("dataStatus").textContent));
   eq("an sf-move paste never offers to replace everything", dialogs.length, 0);
   const toastText = await page.locator("#toast").innerText();
-  ok("summary toast", /Imported · 2 stamps · 2 packed · 18 spend rows · budget \$1,500/.test(toastText), toastText);
+  const fxArrived = Object.keys(fixture.trip.arrived).filter(k => fixture.trip.arrived[k]);
+  ok("summary toast", new RegExp(`Imported · ${fxArrived.length} stamps · 3 pack items · 2 packed · ` +
+    `${fixture.spend.entries.length} spend rows · budget \\$1,500`).test(toastText), toastText);
 
   const merged = await page.evaluate(() => {
     const t = state.trips["sf-2026"];
@@ -265,7 +333,7 @@ const run = async () => {
       budget: t.spend.budget, rows: t.spend.entries.length,
       onlyTrip: Object.keys(state.trips).join(",") };
   });
-  eq("arrived strobert + amarillo", merged.arrived, "amarillo,strobert");
+  eq("arrived stamps from the paste", merged.arrived, fxArrived.slice().sort().join(","));
   eq("rolled strobert 08:30", merged.rolled, "2026-09-06T08:30");
   eq("departDate from the paste", merged.departDate, "2026-09-06");
   eq("2 packed", merged.packed, "g-bag,r-skates");
@@ -320,6 +388,116 @@ const run = async () => {
   await page.waitForFunction(() => /not JSON/.test(document.getElementById("dataStatus").textContent));
   ok("junk paste refused", true);
   ok("no console errors on the export/import round-trip", errors.length === 0, errors.join(" | "));
+
+  /* ---- (i) seed refresh: a Build-2-shaped trip is brought forward, not rebuilt ---- */
+  console.log("\n(i) seed refresh retires dropped stops");
+  errors.length = 0;
+  await page.evaluate(s => {
+    localStorage.clear();
+    localStorage.setItem("mileMarker_v1", JSON.stringify(s));
+    localStorage.setItem("mileMarkerActive", "sf-2026");
+  }, buildTwoShapedState());
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  const ref = await page.evaluate(() => {
+    const t = state.trips["sf-2026"];
+    return {
+      seedRev: t.seedRev,
+      route: RT.stops.map(s => s.id).join(","),
+      retired: t.stops.filter(s => s.retired).map(s => s.id).sort().join(","),
+      kept: t.stops.map(s => s.id).join(","),
+      abqStamp: t.log.arrived.abq === true && t.log.arrivedAt.abq === "2026-09-08T16:30",
+      charges: t.charges.length,
+      dupIds: t.charges.length - new Set(t.charges.map(c => c.id)).size,
+      localCharge: t.charges.some(c => c.id === "chg-local"),
+      p2: t.spend.entries.find(e => e.id === "seed-p2"),
+      p3: t.spend.entries.find(e => e.id === "seed-p3"),
+      strip: [...document.querySelectorAll("#tripProg .tps")].length,
+      cards: [...document.querySelectorAll("#tripStops .card[data-stop]")].map(c => c.getAttribute("data-stop")).join(","),
+      nodes: document.querySelectorAll("#nodeG circle.nd").length
+    };
+  });
+  eq("seedRev brought forward", ref.seedRev, "sf-move v107 0d8b246");
+  eq("abq + la retired", ref.retired, "abq,la");
+  ok("retired stops are kept in the data", /abq/.test(ref.kept) && /la/.test(ref.kept), ref.kept);
+  eq("route skips the retired stops", ref.route, "start,strobert,amarillo,holbrook,moms,coalinga,sf");
+  eq("stop list skips them too", ref.cards, "start,strobert,amarillo,holbrook,moms,coalinga,sf");
+  eq("progress strip has 7 dots", ref.strip, 7);
+  eq("map draws 7 stop nodes", ref.nodes, 7);
+  ok("abq's Arrived stamp survives", ref.abqStamp, JSON.stringify(ref.abqStamp));
+  eq("28 charges after the refresh", ref.charges, 28 + 1);   /* 27 logged + 1 planned + the locally logged one */
+  eq("no duplicate charge ids", ref.dupIds, 0);
+  ok("a locally logged charge is kept", ref.localCharge);
+  ok("planned row refreshed to the v107 amount", ref.p2 && ref.p2.amount === 75 && ref.p2.planned === true,
+    JSON.stringify(ref.p2));
+  ok("a hand-confirmed row is left alone", ref.p3 && ref.p3.planned === false && ref.p3.amount === 42,
+    JSON.stringify(ref.p3));
+  const boot1 = await page.evaluate(() => JSON.stringify(state.trips["sf-2026"]));
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  const boot2 = await page.evaluate(() => JSON.stringify(state.trips["sf-2026"]));
+  ok("a second boot changes no leaf", boot1 === boot2, boot1 === boot2 ? "" : "trip JSON differs after the second boot");
+  ok("no console errors on the seed refresh", errors.length === 0, errors.join(" | "));
+
+  /* ---- (j) disp import drives the Pack groups ---- */
+  console.log("\n(j) Pack groups come from the pasted disp");
+  errors.length = 0;
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  await page.locator("#nav-back").click();
+  await page.waitForSelector("#page-trips.active");
+  await page.locator("#dataPaste").fill(sfExport);
+  await page.locator("#dataImport").click();
+  await page.waitForFunction(() => /merged/.test(document.getElementById("dataStatus").textContent));
+  const dispExpect = fixture.disp, removedExpect = Object.keys(fixture.removed || {});
+  const wantCar = Object.keys(dispExpect).filter(k => dispExpect[k] === "car").length;
+  const wantShip = Object.keys(dispExpect).filter(k => dispExpect[k] === "ship").length;
+  const sellIds = Object.keys(dispExpect).filter(k => ["sell", "leave"].includes(dispExpect[k]));
+  await page.locator(".trcard").first().click();
+  await page.waitForSelector("#page-trip.active");
+  await page.locator("#nav-pack").click();
+  await page.waitForSelector("#page-pack.active");
+  const packed = await page.evaluate(() => {
+    const t = state.trips["sf-2026"];
+    return { ids: t.pack.items.map(i => i.id + ":" + i.group).sort().join(","),
+      packedCount: Object.keys(t.pack.packed).filter(k => t.pack.packed[k]).length,
+      groups: [...document.querySelectorAll("#packGroups .sec-head")].map(h =>
+        h.querySelector(".t").textContent + " " + h.querySelector(".m").textContent.trim()) };
+  });
+  const inGroup = g => Object.keys(dispExpect).filter(k => dispExpect[k] === g);
+  const packedIn = g => inGroup(g).filter(k => fixture.packed[k]).length;
+  eq(`Car ${wantCar}`, packed.groups[0], `Car ${packedIn("car")}/${wantCar}`);
+  eq(`Ship ${wantShip}`, packed.groups[1], `Ship ${packedIn("ship")}/${wantShip}`);
+  ok("no Undecided group when nothing is undecided", !packed.groups.some(g => /^Undecided/.test(g)),
+    packed.groups.join(" | "));
+  ok("sell-tagged items are not packed", sellIds.every(id => !packed.ids.includes(id + ":")),
+    `${sellIds.join(",")} vs ${packed.ids}`);
+  ok("removed items are not packed", removedExpect.every(id => !packed.ids.includes(id + ":")),
+    `${removedExpect.join(",")} vs ${packed.ids}`);
+  eq("packed count unchanged", packed.packedCount,
+    Object.keys(fixture.packed).filter(k => fixture.packed[k]).length);
+  ok("no console errors on the disp import", errors.length === 0, errors.join(" | "));
+
+  /* ---- screenshots: Trips, Trip and Pack at 390 and at 1194 ---- */
+  console.log("\nscreenshots at 390 and 1194");
+  await page.waitForTimeout(2800);   /* let the import toast expire so it is not in the shots */
+  for (const w of [390, 1194]) {
+    await page.setViewportSize({ width: w, height: w === 390 ? 844 : 834 });
+    await page.locator("#nav-back").click();
+    await page.waitForSelector("#page-trips.active");
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(SHOTS, `w${w}-1-trips.png`) });
+    await page.locator(".trcard").first().click();
+    await page.waitForSelector("#page-trip.active");
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: join(SHOTS, `w${w}-2-trip.png`) });
+    await page.locator("#nav-pack").click();
+    await page.waitForSelector("#page-pack.active");
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(SHOTS, `w${w}-3-pack.png`) });
+  }
+  ok("no console errors at either width", errors.length === 0, errors.join(" | "));
 
   await browser.close();
   console.log(`\n${pass} passed, ${fail} failed`);

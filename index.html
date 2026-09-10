@@ -457,7 +457,7 @@
     <button class="newtrip" id="newTripBtn" type="button">+ New trip</button>
     <div class="card sync" id="syncCard">
       <div class="sec-head" style="cursor:default"><span class="t">Sync</span><span class="m" id="syncDeviceBadge"></span></div>
-      <div class="sec-note">Secret GitHub Gist as the store. The ID and token live only on this device (localStorage, never in the app or the repo). Dormant in v1 — nothing is pushed until a Gist is connected here.</div>
+      <div class="sec-note">Secret GitHub Gist as the store. The ID and token live only on this device (localStorage, never in the app or the repo). Dormant until the sync build — nothing is pushed until a Gist is connected here.</div>
       <div class="sec-body syncform">
         <label>Gist ID<input type="text" id="syncGist" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="from gist.github.com/…/<id>"></label>
         <label>GitHub token<input type="password" id="syncToken" autocomplete="off" placeholder="classic PAT, gist scope"></label>
@@ -606,7 +606,7 @@
     </div>
   </div>
 
-  <div class="appver" id="appVer">Mile Marker v2 · build 2026-09-07 · 58590a6</div>
+  <div class="appver" id="appVer">Mile Marker v3 · build 2026-09-10 · e07279c</div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 </div>
@@ -732,6 +732,9 @@
     t.ui=t.ui||{};t.stats=t.stats||{};
     return t;
   }
+  /* a retired stop (dropped by a later seed revision) keeps its stamps and spend rows in the data
+     but is out of the route, the stop list, the progress strip, the day maths and Spend seeding */
+  function liveStops(t){return ((t&&t.stops)||[]).filter(function(s){return s&&!s.retired;});}
   function newTripId(){return "t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
   function createTrip(name,departDate,endDate){
     var v=S.vehicles.filter(function(x){return x.id===S.defaultVehicleId;})[0]||S.vehicles[0]||DEFAULT_VEHICLE;
@@ -742,7 +745,7 @@
   }
   function tripStatus(t){   /* Live on the first Rolling stamp, Done when the last stop is Arrived */
     if(!t)return "planning";
-    var st=t.stops||[];
+    var st=liveStops(t);
     if(st.length>1&&t.log.arrived[st[st.length-1].id])return "done";
     var rolled=false;Object.keys(t.log.rolled).forEach(function(k){if(t.log.rolled[k])rolled=true;});
     if(rolled&&t.status!=="done")return "live";
@@ -799,7 +802,7 @@
   function nearPt(a,b){return !!a&&!!b&&Math.abs(a.lat-b.lat)<0.005&&Math.abs(a.lng-b.lng)<0.005;}
   function hasRoute(){return RT.stops.length>=2;}
   function buildRoute(){
-    var t=T(),st=((t&&t.stops)||[]).filter(function(s){return s&&isFinite(+s.lat)&&isFinite(+s.lng);});
+    var t=T(),st=liveStops(t).filter(function(s){return isFinite(+s.lat)&&isFinite(+s.lng);});
     var WP=[],STOPW=[],CUM=[],OFF=[],tot=0;
     st.forEach(function(s,i){
       var here={lat:+s.lat,lng:+s.lng};
@@ -827,7 +830,8 @@
       var span=Math.round((parseYMD(t.endDate)-parseYMD(t.departDate))/86400000)+1;
       if(span>days)days=span;
     }
-    RT={stops:st,WP:WP,PTS:PTS,STOPW:STOPW,CUM:CUM,CHORD:CHORD,OFF:OFF,TOTAL:tot,DAYS:Math.max(1,days),D:D,M:M,segD:segD};
+    RT={stops:st,WP:WP,PTS:PTS,STOPW:STOPW,CUM:CUM,CHORD:CHORD,OFF:OFF,TOTAL:tot,DAYS:Math.max(1,days),D:D,M:M,segD:segD,LBL:[]};
+    placeLabels();
   }
   function legOf(i){for(var k=0;k<RT.stops.length-1;k++){if(i>=RT.STOPW[k]&&i<RT.STOPW[k+1])return k;}return Math.max(0,RT.stops.length-2);}
   function locate(p){   /* nearest point on the route polyline → {seg,t,dist,miles,leg}; null when there is no route yet */
@@ -862,16 +866,37 @@
   function svgEl(t,attrs){var e=document.createElementNS(NS,t);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
   var tripUI={L:0},SEGLEN=[],tripPos=null,tripWatch=null;
   var NL_FS=9.5;
-  function lblFor(k,p,len){   /* node label placement: alternate above/below so neighbours never share a band,
-                                 then flip the anchor if the estimated box would run off the canvas */
-    var o=(k===0)?[4,12,"start"]:(k%2?[0,14,"middle"]:[0,-8,"middle"]);
-    if(!p)return o;
-    var w=0.56*NL_FS*(len||6),x=p.x+o[0];
-    var left=o[2]==="end"?x-w:(o[2]==="middle"?x-w/2:x);
-    if(left+w>VB.w-2)return [-6,o[1],"end"];
-    if(left<2)return [6,o[1],"start"];
-    return o;
+  /* node label placement, resolved once per route build so no two labels can land on each other:
+     each stop tries its alternating side first, then the other side, then a nudge left or right;
+     the first placement that clears every label already down wins, and if none does the label keeps
+     its preferred spot (the LOD pass still measures it). Stops close together on the canvas —
+     Holbrook and Mom's on the SF route — are exactly the case this exists for. */
+  function boxOf(p,o,len){return tbox(p.x+o[0],p.y+o[1],o[2],NL_FS,len||6);}
+  function hits(a,b){return a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;}
+  function onCanvas(b){return b.x>=2&&b.x+b.w<=VB.w-2&&b.y>=0&&b.y+b.h<=VB.h;}
+  function placeLabels(){
+    var placed=[],out=[];
+    RT.stops.forEach(function(st,k){
+      var p=RT.PTS[RT.STOPW[k]],len=String(st.short||st.name||"").length;
+      if(!p){out.push([0,-8,"middle"]);return;}
+      var below=[0,14,"middle"],above=[0,-8,"middle"];
+      var pref=(k===0)?[4,12,"start"]:(k%2?below:above);
+      var alt=(k===0)?[4,-6,"start"]:(k%2?above:below);
+      var tries=[pref,alt,[8,pref[1],"start"],[-8,pref[1],"end"],[8,alt[1],"start"],[-8,alt[1],"end"]];
+      var pick=null,i,b;
+      for(i=0;i<tries.length;i++){
+        b=boxOf(p,tries[i],len);
+        if(!onCanvas(b))continue;
+        if(placed.some(function(q){return hits(b,q);}))continue;
+        pick=tries[i];break;
+      }
+      if(!pick)pick=pref;
+      placed.push(boxOf(p,pick,len));
+      out.push(pick);
+    });
+    RT.LBL=out;
   }
+  function lblFor(k){return (RT.LBL&&RT.LBL[k])||[0,-8,"middle"];}
   function backupsOf(){var out=[];RT.stops.forEach(function(s){if(s.backup&&isFinite(+s.backup.lat))out.push(s.backup);});return out;}
   function chargesOf(){var t=T();return (t&&t.charges)||[];}
   function buildTripMap(){
@@ -900,7 +925,7 @@
       ng.appendChild(svgEl("circle",{"class":"chg"+(c.planned?" plan":""),cx:p.x.toFixed(2),cy:p.y.toFixed(2),r:3}));
     });
     RT.stops.forEach(function(s,k){
-      var p=RT.PTS[RT.STOPW[k]],nm=s.short||s.name||"",o=lblFor(k,p,nm.length);
+      var p=RT.PTS[RT.STOPW[k]],nm=s.short||s.name||"",o=lblFor(k);
       var n=svgEl("circle",{"class":"nd"+(k===0?" start":"")+(s.home?" home":""),cx:p.x.toFixed(2),cy:p.y.toFixed(2),r:k===0?3.6:4.6});
       ng.appendChild(n);tripUI.nodes.push(n);
       var t=svgEl("text",{"class":"nl"+(k>0?" b":""),x:(p.x+o[0]).toFixed(2),y:(p.y+o[1]).toFixed(2),"text-anchor":o[2],"data-cx":p.x.toFixed(2),"data-cy":p.y.toFixed(2)});
@@ -925,7 +950,7 @@
     var g=$("lodG");if(!g)return;g.innerHTML="";
     var cg=svgEl("g",{"class":"lod-chg",opacity:0});g.appendChild(cg);
     lodUI={chg:cg,labels:[],chgLabels:[],lastS:-1};
-    RT.stops.forEach(function(st,k){var nm=String(st.short||st.name||""),p=RT.PTS[RT.STOPW[k]],o=lblFor(k,p,nm.length),b=tbox(p.x+o[0],p.y+o[1],o[2],NL_FS,nm.length);
+    RT.stops.forEach(function(st,k){var nm=String(st.short||st.name||""),p=RT.PTS[RT.STOPW[k]],o=lblFor(k),b=tbox(p.x+o[0],p.y+o[1],o[2],NL_FS,nm.length);
       lodUI.labels.push({x:p.x,y:p.y,dx:b.x-p.x,dy:b.y-p.y,w:b.w,h:b.h});});
     chargesOf().forEach(function(c){
       if(!isFinite(+c.lat))return;
@@ -1364,8 +1389,12 @@
     var names=[],dep=departDate(),first=RT.stops[0],last=RT.stops[RT.stops.length-1];
     var r1=RT.stops[1]&&t0.log.rolled[RT.stops[1].id]?parseLocalISO(t0.log.rolled[RT.stops[1].id]):null;
     names.push('<div class="tpn first" style="left:0">'+esc(first.short||first.name)+'<small>'+WD3[dep.getDay()]+(r1?" · "+fmtTime(r1):" "+fmtShort(dep))+'</small></div>');
+    /* the first and last labels are anchored to the ends and always win; a middle label that would
+       sit on top of one is dropped rather than overlapped (the flag still shows where the ring is) */
+    var END_GAP=12;
     RT.stops.forEach(function(s,i){if(i===0||i===RT.stops.length-1)return;
       var passed=RT.CUM[i]<=pos+0.5,isNext=i===next,show=passed||isNext||s.home;if(!show)return;
+      if(X(i)<END_GAP||X(i)>100-END_GAP)return;
       var sub=isNext?"next · "+num(RT.CUM[i]-pos)+" mi":"Day "+(RT.OFF[i]+1);
       names.push('<div class="tpn'+(isNext?" next":" opt")+'" style="left:'+px(X(i))+'">'+esc(s.short||s.name)+'<small>'+sub+'</small></div>');});
     var endNext=next===RT.stops.length-1;
@@ -1482,7 +1511,8 @@
     {id:"bl-kane",t:"Kane: fed, walked, kit within reach"}
   ];}
   var packFilter="all",packCards=[];
-  var GROUP_LABEL={car:"Car",ship:"Ship",joey:"Joey"};   /* group ids are stored on the item; these are what the section heads read */
+  var GROUP_LABEL={car:"Car",ship:"Ship",joey:"Joey",undecided:"Undecided"};   /* group ids are stored on the item; these are what the section heads read */
+  var GROUP_ORDER=["car","ship","joey","undecided"];   /* then anything else, then "This trip" last */
   function groupLabel(g){return GROUP_LABEL[g]||g;}
   function packItems(){   /* Build 7 fills templates; until then this is just the trip's own list */
     var t=T();if(!t)return [];
@@ -1554,7 +1584,11 @@
     var wrap=$("packGroups");wrap.innerHTML="";packCards=[];
     var items=packItems(),groups=[],byGroup={};
     items.forEach(function(i){var g=i.group||"This trip";if(!byGroup[g]){byGroup[g]=[];groups.push(g);}byGroup[g].push(i);});
-    if(groups.indexOf("This trip")<0){groups.push("This trip");byGroup["This trip"]=[];}
+    /* Car · Ship · Joey · Undecided, then anything else, then "This trip" — an empty group never renders,
+       so Undecided is simply absent until a paste puts something in it */
+    groups=GROUP_ORDER.filter(function(g){return byGroup[g];})
+      .concat(groups.filter(function(g){return GROUP_ORDER.indexOf(g)<0&&g!=="This trip";}));
+    groups.push("This trip");byGroup["This trip"]=byGroup["This trip"]||[];
     groups.forEach(function(g){
       var all=byGroup[g],show=all.filter(function(i){return packFilter!=="unpacked"||!t.pack.packed[i.id];});
       var card=el("div","card"+(t.pack.collapsed["pk-"+g]?" closed":""));
@@ -2055,25 +2089,68 @@
   function toast(msg){var t=$("toast");if(!t)return;t.textContent=msg;t.classList.add("show");if(toastT)clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove("show");},2600);}
 
   /* ---------- IMPORT: the SF move as trip #1 ----------
-     Code-seeded from sf-move v55 (epicminds-eng/sf-move, read-only) in its FINAL post-migration shape:
-     STOPS + BACKUPS + WAYPTS + CHARGES + EXPENSES + the seedSpend rows that survived day1PetV1/day1HotelV1
-     (no seed-h1/seed-p1) + BEFORE_LEAVE + the Pack car/ship/joey lists.
-     Stop ids are sf-move's, unchanged: pasted stamps and spend stopIds still match.
+     Code-seeded from epicminds-eng/sf-move (read-only) at the revision named in IMPORT_SF.rev, in its
+     FINAL post-migration shape: STOPS + BACKUPS + WAYPTS + CHARGES + EXPENSES + the surviving seedSpend
+     rows + BEFORE_LEAVE. Stop ids are sf-move's, unchanged: pasted stamps and spend stopIds still match.
      WAYPTS are split at their stop:<id> markers into per-leg Stop.route polylines, so the map draws the
-     same road-following line sf-move draws.
-     Pack: sf-move keeps each item's car/ship/joey disposition in per-device state (state.disp), not in code —
-     only the catalogue (SORT) and the notes are code. The groups below are that catalogue with the group taken
-     from each item's own note / sub-header / the EXTRA reference verdicts ("Car", "Rides in the car",
-     "Ships or organizes here", "(to Joey)"); items whose note reads leave / sell / donate / DON'T pack are
-     not packed at all and are left out, exactly as sf-move's Pack tab leaves out anything not tagged
-     car/ship/joey. Ids are SORT's, so a pasted sfMoveApp_v1.packed lands on them by construction. */
+     same road-following line sf-move draws. Stop.tz rides along as data — nothing reads it until Build 2.2.
+     Pack items are NOT seeded here: sf-move's Pack tab is the Sort catalogue filtered by per-device `disp`,
+     so the catalogue below is code and the grouping arrives with an sf-move paste (mergeSfMove). */
   var SF_TRIP_ID="sf-2026";
-  function packList(group,rows){return rows.map(function(r){return{id:r[0],t:r[1],group:group};});}
+  var SF_SEED_REV="sf-move v107 0d8b246";
+  /* the Sort catalogue, ids verbatim — mergeSfMove pairs these with the pasted `disp` to build pack.items */
+  var SF_PACK_CATALOGUE=[
+      ["g-bag","Gamer bag + current clubs"],["g-shoes","Golf shoes"],["g-gps","Golf GPS / rangefinder"],
+      ["g-glove","Gloves (playing)"],["g-balls","Balls + tees + essentials pouch"],["g-rain","Rain gear / umbrella"],
+      ["g-launch","Launch monitor (Approach)"],["g-net","Hitting net"],["g-mats","Hitting mats + putting green"],
+      ["g-headcovers","Headcover collection"],["g-shelf","Ball / accessory shelf stock"],
+      ["g-bk-here","Backup set A — stays here (Chicago set)"],["g-bk-uncle","Backup set B — uncle's place"],
+      ["g-bk-extra","Any set beyond two — sell or donate"],["g-mystery1","Mystery golf bag #1 — dump + sort"],
+      ["g-mystery2","Mystery golf bag #2 — dump + sort"],["w-bodies","Camera bodies (Canon)"],["w-lenses","Lenses"],
+      ["w-batteries","Batteries + chargers + card readers"],["w-cards","Memory cards"],["w-macbook","M5 MacBook Pro"],
+      ["w-drives","PRO-G40 + all backup drives"],["w-tripods","Tripods / stands / rigs"],["w-audio","Mics / audio kit"],
+      ["w-imac","iMac"],["w-monitor","External monitor + arm"],["w-vision","Vision Pro"],["w-homepod","HomePod"],
+      ["w-printer","Printer"],["w-hue","Hue bridge + smart bulbs"],["w-lapdesk","Lap desk"],
+      ["w-lamp","Cordless table lamp"],["w-mirror","Full-length mirror"],["c-rain","Rain shell / waterproof jacket"],
+      ["c-coat","Warm coat"],["c-light-jacket","Light jacket / overshirt"],["c-hoodies","Hoodies / sweatshirts"],
+      ["c-sweaters","Sweaters / knits"],["c-tees","T-shirts"],["c-longsleeve","Long-sleeve / henleys"],
+      ["c-buttonup","Button-ups / nicer shirts"],["c-base","Base layers / thermals"],["c-jeans","Jeans / everyday pants"],
+      ["c-chinos","Chinos / nicer pants"],["c-shorts","Shorts (summer)"],["c-gym-top","Workout tops"],
+      ["c-gym-bottom","Shorts / joggers"],["c-gym-socks","Athletic socks"],["c-gloves","Gloves"],
+      ["c-beanie","Beanie / warm hat"],["c-cap","Cap / sun hat (summer)"],["c-scarf","Scarf"],
+      ["c-socks","Everyday socks"],["c-underwear","Underwear"],["c-boots","Boots"],["c-sneakers","Everyday sneakers"],
+      ["c-dress","Dress / nicer shoes"],["c-sandals","Sandals / summer shoes"],["c-summer-box","Summer overflow box"],
+      ["wo-15","15 lb dumbbell pair"],["wo-10","10 lb dumbbell pair"],["wo-bench","FLYBIRD adjustable bench"],
+      ["wo-ab","Merach AB coaster"],["wo-mace","Steel mace"],["wo-kb","Kettlebell"],
+      ["wo-ankle","Adjustable ankle/wrist weights"],["wo-gloves","Weighted gloves"],
+      ["wo-blue","Blue neoprene dumbbells (light pair)"],["wo-slant","Slant board / calf stretcher"],
+      ["k-knives","Knives + cutting board"],["k-castiron","Cast iron skillet"],
+      ["k-pans","Daily pans (wok / grill pan / skillet)"],["k-coffee","Coffee setup"],
+      ["k-bottles","Water bottles (Hydro Flask / Yeti)"],["k-airfryer","Typhur air fryer"],
+      ["k-blender","Blender (Ninja)"],["k-containers","Food storage containers"],
+      ["k-utensils","Cooking utensils + tools"],["k-pepper","Pepper mill + spices"],["k-supplements","Supplement shelf"],
+      ["k-yeti","YETI cooler"],["k-insmeer","Insmeer cooler"],["r-skates","Rollerblades"],
+      ["r-pads","Pads (knee / elbow / wrist)"],["r-helmet","Helmet"],["r-tool","Skate tool / Allen keys"],
+      ["r-wheels","Spare wheels"],["r-bearings","Spare bearings"],["r-laces","Spare laces / liners"],
+      ["r-bag","Skate bag / backpack"],["r-old","Old / backup skates"],["h-towels","Three good towels"],
+      ["h-toiletries","All toiletries + essentials"],["h-firstnight","First-night toiletry bag — packed separately"],
+      ["h-rx","Prescriptions refilled before the drive"],["h-bags","Clear plastic zip bags (packing supply)"],
+      ["h-bedding","Bedding — DON'T pack"],["h-suitcase1","Suitcase 1 (to Joey)"],["h-suitcase2","Suitcase 2 (to Joey)"],
+      ["d-passport","Passport"],["d-birth","Birth certificate"],["d-ssn","Social Security card"],
+      ["d-title","Tesla title + registration"],["d-carloan","Purchase / loan paperwork"],
+      ["d-tax","Tax returns (last few years)"],["d-checks","Checkbooks + spare cards"],
+      ["d-policies","Insurance policies"],["d-estate","Wills / POA / trust docs (if any)"],
+      ["d-medical","Medical records"],["d-kane","Kane's records / papers"],["d-cash","Cash reserve"],
+      ["d-valuables","Jewelry / small valuables"],["d-sentimental","Sentimental irreplaceables"],
+      ["d-2fa","2FA / password recovery codes"],["d-crypto","Seed phrases / hardware wallet (if any)"],
+      ["d-keys","Spare house / safe keys"]
+  ];
   function IMPORT_SF(){
     var stops=[
-      {id:"start",name:"South Barrington, IL",short:"Start",lat:42.0914,lng:-88.1562,mi:0,miSrc:"manual"},
+      {id:"start",name:"South Barrington, IL",short:"Start",lat:42.0914,lng:-88.1562,mi:0,miSrc:"manual",
+       tz:"America/Chicago"},
       {id:"strobert",name:"Springfield, MO",short:"Springfield",lat:37.2440,lng:-93.2718,mi:505,miSrc:"manual",
-       overnight:true,nights:1,petFee:25,
+       tz:"America/Chicago",overnight:true,nights:1,petFee:25,
        hotel:"Candlewood Suites Springfield · 1920 E Kerr St",
        detail:"Pets $25/night · kitchen suite · crated dogs OK alone",
        mapsUrl:"https://maps.apple.com/?address=1920%20E%20Kerr%20St%2C%20Springfield%2C%20MO%2065803",
@@ -2081,64 +2158,89 @@
        backup:{id:"rolla",name:"Rolla, MO",short:"Rolla",lat:37.9514,lng:-91.7713,chargerQuery:"Tesla Supercharger Rolla MO"},
        route:[[39.7817,-89.6501],[38.6270,-90.1994],[37.9514,-91.7713],[37.8284,-92.1502]]},
       {id:"amarillo",name:"Amarillo, TX",short:"Amarillo",lat:35.2220,lng:-101.8313,mi:545,miSrc:"manual",
-       overnight:true,nights:1,petFee:50,
-       hotel:"Hotel TBD",
+       tz:"America/Chicago",overnight:true,nights:1,petFee:75,
+       hotel:"Home2 Suites by Hilton Amarillo East · 7775 I-40 East",
+       detail:"Pets $75/stay · check-in 3 PM",
+       mapsUrl:"https://maps.apple.com/?address=7775%20I-40%20East%2C%20Amarillo%2C%20TX%2079118",
        chargerQuery:"Tesla Supercharger Amarillo TX",
-       hotelUrl:"https://www.orbitz.com/Hotel-Search?destination=Amarillo%2C%20Texas",
        backup:{id:"shamrock",name:"Shamrock, TX",short:"Shamrock",lat:35.2140,lng:-100.2490,chargerQuery:"Tesla Supercharger Shamrock TX"},
        route:[[36.1540,-95.9928],[35.4676,-97.5164],[35.5262,-98.7076]]},
-      {id:"abq",name:"Albuquerque, NM",short:"Albuquerque",lat:35.099215,lng:-106.590972,mi:289,miSrc:"manual",
-       overnight:true,nights:1,petFee:75,
-       hotel:"Sonesta ES Suites · 3300 Prospect Ave NE",
-       detail:"Check-in 4 PM · call ahead if after 9 PM · pets $75/stay",
-       mapsUrl:"https://maps.apple.com/?address=3300%20Prospect%20Ave%20NE%2C%20Albuquerque%2C%20NM%2087107",
-       hotelUrl:"https://www.orbitz.com/Albuquerque-Hotels-Sonesta-ES-Suites-Albuquerque.h6463.Hotel-Information",
-       chargerQuery:"Tesla Supercharger Albuquerque NM",
-       backup:{id:"santarosa",name:"Santa Rosa, NM",short:"Santa Rosa",lat:34.9381,lng:-104.6825,chargerQuery:"Tesla Supercharger Santa Rosa NM"},
-       route:[[34.9381,-104.6825]]},
-      {id:"moms",name:"Sun Lakes, AZ",short:"Mom's",lat:33.22721,lng:-111.88610,mi:465,miSrc:"manual",
-       overnight:true,nights:1,home:true,
+      {id:"holbrook",name:"Holbrook, AZ",short:"Holbrook",lat:34.9022,lng:-110.1582,mi:518,miSrc:"manual",
+       tz:"America/Phoenix",overnight:true,nights:1,petFee:50,
+       hotel:"Best Western Arizonian Inn · 2508 Navajo Blvd",
+       detail:"Suite, 1 King · check-in 3 PM",
+       mapsUrl:"https://maps.apple.com/?address=2508%20Navajo%20Blvd%2C%20Holbrook%2C%20AZ%2086025",
+       chargerQuery:"Tesla Supercharger Holbrook AZ",
+       route:[[34.9381,-104.6825],[35.099215,-106.590972],[35.1697,-107.8909]]},
+      {id:"moms",name:"Sun Lakes, AZ",short:"Mom's",lat:33.22721,lng:-111.88610,mi:223,miSrc:"manual",
+       tz:"America/Phoenix",overnight:true,nights:1,home:true,
        mapsUrl:"https://maps.apple.com/?ll=33.22721,-111.88610&q=Mom%27s",
-       route:[[35.1697,-107.8909],[34.9022,-110.1582],[34.2309,-111.3251]]},
-      {id:"la",name:"LA — Seychelle's",short:"LA",lat:34.0525,lng:-118.3720,mi:380,miSrc:"manual",
-       overnight:true,nights:1,home:true,
-       detail:"1127 S Hayworth Ave, Los Angeles, CA 90035",
-       mapsUrl:"https://maps.apple.com/?address=1127%20S%20Hayworth%20Ave%2C%20Los%20Angeles%2C%20CA%2090035",
-       chargerQuery:"Tesla Supercharger Los Angeles CA",
-       route:[[33.6103,-114.5964]]},
-      {id:"sf",name:"San Francisco, CA",short:"SF",lat:37.7757,lng:-122.4400,mi:385,miSrc:"manual",home:true,
+       route:[[35.0242,-110.6974],[34.2309,-111.3251]]},
+      {id:"coalinga",name:"Coalinga, CA",short:"Coalinga",lat:36.2544,lng:-120.2372,mi:580,miSrc:"manual",
+       tz:"America/Los_Angeles",overnight:true,nights:1,petFee:50,
+       hotel:"Harris Ranch Inn · 24505 W Dorris Ave",
+       detail:"Pet-friendly · 100 Supercharger stalls on site · check-in 4 PM–midnight",
+       note:"Non-refundable · Expedia #73541759098262",
+       mapsUrl:"https://maps.apple.com/?address=24505%20W%20Dorris%20Ave%2C%20Coalinga%2C%20CA%2093210",
+       chargerQuery:"Tesla Supercharger Harris Ranch Coalinga CA",
+       route:[[33.6103,-114.5964],[34.0525,-118.3720],[35.3733,-119.0187],[35.6175,-119.6945]]},
+      {id:"sf",name:"San Francisco, CA",short:"SF",lat:37.7757,lng:-122.4400,mi:185,miSrc:"manual",
+       tz:"America/Los_Angeles",home:true,
        detail:"1442A Grove St, SF 94117",
        mapsUrl:"https://maps.apple.com/?address=1442A%20Grove%20St%2C%20San%20Francisco%2C%20CA%2094117",
-       chargerQuery:"Tesla Supercharger San Francisco CA",
-       route:[[35.3733,-119.0187],[35.6175,-119.6945]]}
+       chargerQuery:"Tesla Supercharger San Francisco CA"}
     ];
     /* Supercharger sessions, sf-move's CHARGES verbatim (chg-oasis is planned: hollow node, no Spend row) */
     var charges=[
-      {id:"chg-oasis",planned:true,name:"Tesla Oasis – Lost Hills, CA",addr:"22422 Highway 46, Lost Hills, CA 93249",lat:35.6175,lng:-119.6945,leg:"LA → SF"},
+      {id:"chg-oasis",planned:true,name:"Tesla Oasis – Lost Hills, CA",addr:"22422 Highway 46, Lost Hills, CA 93249",lat:35.6175,lng:-119.6945,leg:"Mom's → Coalinga"},
       {id:"chg-001",name:"Normal, IL – West Raab Rd",addr:"610 West Raab Rd, Normal, IL 61761",lat:40.5327,lng:-88.9918,date:"2026-09-06",time:"10:27",kwh:29.83,rate:0.35,cost:10.43,min:14},
       {id:"chg-002",name:"Springfield, IL – South Dirksen",addr:"1501 S Dirksen Pkwy, Springfield, IL 62703",lat:39.7755,lng:-89.6089,date:"2026-09-06",time:"11:41",kwh:43.79,rate:0.36,cost:15.76,min:28},
       {id:"chg-003",name:"Fenton, MO – Wally's",addr:"950 Assembly Pkwy, Fenton, MO 63026",lat:38.5093,lng:-90.4527,date:"2026-09-06",time:"13:45",kwh:36.59,rate:0.44,cost:16.10,min:21},
       {id:"chg-004",name:"Rolla, MO",addr:"1705 Martin Springs Dr, Rolla, MO 65401",lat:37.9448,lng:-91.7967,date:"2026-09-06",time:"15:23",kwh:35.66,rate:0.37,cost:13.19,min:21},
       {id:"chg-005",name:"Springfield, MO – North (Buc-ee's)",addr:"3284 N Mulroy Rd, Springfield, MO 65803",lat:37.2683,lng:-93.2340,date:"2026-09-06",time:"17:14",kwh:45.64,rate:0.37,cost:16.88,min:26},
       {id:"chg-006",name:"Joplin, MO – Highway 43",addr:"4240 Hwy 43, Joplin, MO 64803",lat:37.0392,lng:-94.5487,date:"2026-09-07",time:"09:35",kwh:36.29,rate:0.37,cost:13.42,min:23},
-      {id:"chg-007",name:"Tulsa, OK – East 41st St",addr:"5726 E 41st St, Tulsa, OK 74135",lat:36.1006,lng:-95.8850,date:"2026-09-07",time:"11:46",kwh:48.25,rate:0.40,cost:19.30,min:33}
+      {id:"chg-007",name:"Tulsa, OK – East 41st St",addr:"5726 E 41st St, Tulsa, OK 74135",lat:36.1006,lng:-95.8850,date:"2026-09-07",time:"11:46",kwh:48.25,rate:0.40,cost:19.30,min:33},
+      {id:"chg-008",name:"Oklahoma City, OK – West Memorial",addr:"3437 W Memorial Rd, Oklahoma City, OK 73134",lat:35.6086,lng:-97.5766,date:"2026-09-07",time:"13:48",kwh:40.29,rate:0.46,cost:18.53,min:27},
+      {id:"chg-009",name:"Calumet, OK – Cherokee Trading Post",addr:"245 S Walbaum Rd, Calumet, OK 73014",lat:35.6003,lng:-98.1236,date:"2026-09-07",time:"15:00",kwh:23.53,rate:0.56,cost:13.17,min:14},
+      {id:"chg-010",name:"Elk City, OK",addr:"2001 E 7th St, Elk City, OK 73644",lat:35.4088,lng:-99.3854,date:"2026-09-07",time:"16:15",kwh:27.21,rate:0.48,cost:13.06,min:16},
+      {id:"chg-011",name:"Shamrock, TX",addr:"107 E 12th St, Shamrock, TX 79079",lat:35.2145,lng:-100.2490,date:"2026-09-07",time:"17:17",kwh:43.88,rate:0.38,cost:16.67,min:31},
+      {id:"chg-012",name:"Amarillo, TX – I-40 (Buc-ee's)",addr:"9900 I-40, Amarillo, TX 79118",lat:35.1725,lng:-101.7150,date:"2026-09-07",time:"18:58",kwh:37.12,rate:0.38,cost:14.10,min:18},
+      {id:"chg-013",name:"Amarillo, TX – West Amarillo Blvd",addr:"8231 W Amarillo Blvd, Amarillo, TX 79124",lat:35.1975,lng:-101.9350,date:"2026-09-08",time:"07:10",kwh:21.42,rate:0.38,cost:8.14,min:19},
+      {id:"chg-014",name:"Tucumcari, NM",addr:"2624 S Adams St, Tucumcari, NM 88401",lat:35.1520,lng:-103.7090,date:"2026-09-08",time:"08:58",kwh:47.81,rate:0.40,cost:19.12,min:32},
+      {id:"chg-015",name:"Santa Rosa, NM",addr:"2516 Historic Route 66, Santa Rosa, NM 88435",lat:34.9381,lng:-104.6825,date:"2026-09-08",time:"10:18",kwh:29.42,rate:0.41,cost:12.06,min:24},
+      {id:"chg-016",name:"Albuquerque, NM – 12th St NW",addr:"2510 12th St NW, Albuquerque, NM 87104",lat:35.1085,lng:-106.6640,date:"2026-09-08",time:"12:21",kwh:44.39,rate:0.42,cost:18.64,min:27},
+      {id:"chg-017",name:"Milan, NM",addr:"1500 Willow Dr, Milan, NM 87021",lat:35.1690,lng:-107.8940,date:"2026-09-08",time:"13:55",kwh:35.55,rate:0.40,cost:14.22,min:24},
+      {id:"chg-018",name:"Gallup, NM",addr:"111 Twin Buttes Rd, Gallup, NM 87301",lat:35.5110,lng:-108.7530,date:"2026-09-08",time:"15:15",kwh:18.28,rate:0.42,cost:7.67,min:20},
+      {id:"chg-019",name:"Holbrook, AZ – Navajo Blvd",addr:"2096 Navajo Blvd, Holbrook, AZ 86025",lat:34.9080,lng:-110.1490,date:"2026-09-08",time:"18:09",kwh:23.83,rate:0.41,cost:9.77,min:22},
+      {id:"chg-020",name:"Holbrook, AZ – Navajo Blvd",addr:"2096 Navajo Blvd, Holbrook, AZ 86025",lat:34.9080,lng:-110.1490,date:"2026-09-08",time:"17:05",kwh:21.80,rate:0.41,cost:8.93,min:11},
+      {id:"chg-021",name:"Payson, AZ – AZ-260",addr:"142 AZ-260, Payson, AZ 85541",lat:34.2420,lng:-111.3230,date:"2026-09-09",time:"12:58",kwh:30.59,rate:0.47,cost:14.37,min:24},
+      {id:"chg-022",name:"Chandler, AZ – West Ray Rd",addr:"3075 W Ray Rd, Chandler, AZ 85226",lat:33.3200,lng:-111.9670,date:"2026-09-09",time:"13:51",kwh:26.76,rate:0.49,cost:13.11,min:22},
+      {id:"chg-023",name:"Buckeye, AZ",addr:"416 S Watson Rd, Buckeye AZ 85326",lat:33.444,lng:-112.556,date:"2026-09-10",time:"07:16",kwh:14.57,rate:0.37,cost:5.39,min:11},
+      {id:"chg-024",name:"Quartzsite, AZ",addr:"1451 W Main St, Quartzsite AZ 85346",lat:33.664,lng:-114.231,date:"2026-09-10",time:"08:53",kwh:43.65,rate:0.41,cost:17.89,min:29},
+      {id:"chg-025",name:"Indio, CA",addr:"42100 Jackson St, Indio CA 92203",lat:33.737,lng:-116.217,date:"2026-09-10",time:"11:00",kwh:36.89,rate:0.44,cost:16.23,min:24},
+      {id:"chg-026",name:"Ontario, CA",addr:"3760 Inland Empire Blvd, Ontario CA 91764",lat:34.068,lng:-117.588,date:"2026-09-10",time:"12:42",kwh:31.68,rate:0.51,cost:16.15,min:19},
+      {id:"chg-027",name:"Castaic, CA",addr:"31884 Castaic Rd, Castaic CA 91384",lat:34.489,lng:-118.620,date:"2026-09-10",time:"14:23",kwh:37.39,rate:0.47,cost:17.57,min:28}
     ];
     var expenses=[
       {id:"exp-001",cat:"groceries",amount:10.65,note:"County Market · Springfield IL",date:"2026-09-06",time:"11:48"},
       {id:"exp-002",cat:"hotel",amount:168.72,note:"Candlewood Suites Springfield · booked Orbitz",date:"2026-09-06",time:"15:39"},
       {id:"exp-003",cat:"groceries",amount:24.83,note:"Walmart · Springfield MO",date:"2026-09-06",time:"18:40"},
-      {id:"exp-004",cat:"kane",amount:25.00,note:"Pet fee · Candlewood Springfield",date:"2026-09-06",time:"17:49"}
+      {id:"exp-004",cat:"kane",amount:25.00,note:"Pet fee · Candlewood Springfield",date:"2026-09-06",time:"17:49"},
+      {id:"exp-005",cat:"hotel",amount:314.98,note:"Home2 Suites Amarillo East · booked Orbitz",date:"2026-09-07",time:"17:30"},
+      {id:"exp-006",cat:"groceries",amount:41.10,note:"Walmart · Amarillo TX",date:"2026-09-07",time:"19:37"},
+      {id:"exp-007",cat:"hotel",amount:231.21,note:"Best Western Arizonian Inn · booked Orbitz",date:"2026-09-08",time:"17:00"},
+      {id:"exp-008",cat:"groceries",amount:34.20,note:"Safeway · Holbrook AZ",date:"2026-09-08",time:"16:59"},
+      {id:"exp-009",cat:"hotel",amount:252.74,note:"Harris Ranch Inn · booked Expedia · incl. $13.74 stay protection",date:"2026-09-10",time:"14:30"}
     ];
-    /* seedSpend's planned rows, minus seed-h1/seed-p1 (retired by day1HotelV1 / day1PetV1) */
+    /* seedSpend's surviving planned rows: every hotel row is booked now, so only pet fees, tolls and the shipment stand */
     var ts=Date.parse("2026-09-06T00:00:00Z");
     function P(id,amount,cat,note,day,stopId,billsLater){
       return{id:id,amount:amount,cat:cat,note:note,day:day,stopId:stopId,ts:ts,planned:true,billsLater:!!billsLater};
     }
     var entries=[
-      P("seed-h2",120,"hotel","Amarillo hotel",2,"amarillo"),
-      P("seed-h3",140,"hotel","Sonesta ES Suites Albuquerque",3,"abq"),
-      P("seed-p2",50,"kane","Pet fee",2,"amarillo"),
-      P("seed-p3",75,"kane","Pet fee · Sonesta",3,"abq"),
+      P("seed-p2",75,"kane","Pet fee · Home2 Suites",2,"amarillo"),
+      P("seed-p3",50,"kane","Pet fee · Holbrook",3,"holbrook"),
+      P("seed-p5",50,"kane","Pet fee · Harris Ranch",5,"coalinga"),
       P("seed-t1",5,"tolls","Illinois Tollway (I-PASS)",1,"strobert",true),
       P("seed-t2",12,"tolls","Oklahoma turnpikes (Will Rogers + Turner)",2,"amarillo",true),
       P("seed-m0",240,"misc","Ship Sticks · 3 pieces",0,null)
@@ -2155,51 +2257,6 @@
       {id:"bl-firstweek",t:"First-week box in last, on top"},
       {id:"bl-kane",t:"Kane: fed, walked, kit within reach"}
     ];
-    var items=[].concat(
-      packList("car",[
-        ["g-bag","Gamer bag + current clubs"],["g-shoes","Golf shoes"],["g-gps","Golf GPS / rangefinder"],
-        ["g-glove","Gloves (playing)"],["g-balls","Balls + tees + essentials pouch"],["g-rain","Rain gear / umbrella"],
-        ["w-bodies","Camera bodies (Canon)"],["w-lenses","Lenses"],["w-batteries","Batteries + chargers + card readers"],
-        ["w-cards","Memory cards"],["w-macbook","M5 MacBook Pro"],["w-drives","PRO-G40 + all backup drives"],
-        ["w-tripods","Tripods / stands / rigs"],["w-audio","Mics / audio kit"],["w-imac","iMac"],
-        ["w-monitor","External monitor + arm"],["w-vision","Vision Pro"],["w-homepod","HomePod"],
-        ["w-hue","Hue bridge + smart bulbs"],["w-lapdesk","Lap desk"],["w-lamp","Cordless table lamp"],
-        ["c-rain","Rain shell / waterproof jacket"],["c-coat","Warm coat"],["c-light-jacket","Light jacket / overshirt"],
-        ["c-hoodies","Hoodies / sweatshirts"],["c-sweaters","Sweaters / knits"],["c-tees","T-shirts"],
-        ["c-longsleeve","Long-sleeve / henleys"],["c-buttonup","Button-ups / nicer shirts"],["c-base","Base layers / thermals"],
-        ["c-jeans","Jeans / everyday pants"],["c-chinos","Chinos / nicer pants"],["c-shorts","Shorts (summer)"],
-        ["c-gym-top","Workout tops"],["c-gym-bottom","Shorts / joggers"],["c-gym-socks","Athletic socks"],
-        ["c-gloves","Gloves"],["c-beanie","Beanie / warm hat"],["c-cap","Cap / sun hat (summer)"],["c-scarf","Scarf"],
-        ["c-socks","Everyday socks"],["c-underwear","Underwear"],["c-boots","Boots"],["c-sneakers","Everyday sneakers"],
-        ["c-dress","Dress / nicer shoes"],["c-sandals","Sandals / summer shoes"],
-        ["wo-15","15 lb dumbbell pair"],["wo-10","10 lb dumbbell pair"],
-        ["k-knives","Knives + cutting board"],["k-castiron","Cast iron skillet"],["k-pans","Daily pans (wok / grill pan / skillet)"],
-        ["k-coffee","Coffee setup"],["k-bottles","Water bottles (Hydro Flask / Yeti)"],["k-yeti","YETI cooler"],
-        ["r-skates","Rollerblades"],["r-pads","Pads (knee / elbow / wrist)"],["r-helmet","Helmet"],["r-tool","Skate tool / Allen keys"],
-        ["h-towels","Three good towels"],["h-toiletries","All toiletries + essentials"],
-        ["h-firstnight","First-night toiletry bag — packed separately"],["h-rx","Prescriptions refilled before the drive"],
-        ["h-bags","Clear plastic zip bags (packing supply)"],
-        ["d-passport","Passport"],["d-birth","Birth certificate"],["d-ssn","Social Security card"],
-        ["d-title","Tesla title + registration"],["d-carloan","Purchase / loan paperwork"],
-        ["d-tax","Tax returns (last few years)"],["d-checks","Checkbooks + spare cards"],["d-policies","Insurance policies"],
-        ["d-estate","Wills / POA / trust docs (if any)"],["d-medical","Medical records"],["d-kane","Kane's records / papers"],
-        ["d-cash","Cash reserve"],["d-valuables","Jewelry / small valuables"],["d-sentimental","Sentimental irreplaceables"],
-        ["d-2fa","2FA / password recovery codes"],["d-crypto","Seed phrases / hardware wallet (if any)"],
-        ["d-keys","Spare house / safe keys"]
-      ]),
-      packList("ship",[
-        ["g-launch","Launch monitor (Approach)"],["g-net","Hitting net"],["g-mats","Hitting mats + putting green"],
-        ["g-headcovers","Headcover collection"],["g-shelf","Ball / accessory shelf stock"],
-        ["c-summer-box","Summer overflow box"],
-        ["k-airfryer","Typhur air fryer"],["k-blender","Blender (Ninja)"],["k-containers","Food storage containers"],
-        ["k-utensils","Cooking utensils + tools"],["k-pepper","Pepper mill + spices"],["k-supplements","Supplement shelf"],
-        ["k-insmeer","Insmeer cooler"],
-        ["r-wheels","Spare wheels"],["r-bearings","Spare bearings"],["r-laces","Spare laces / liners"],["r-bag","Skate bag / backpack"]
-      ]),
-      packList("joey",[
-        ["h-suitcase1","Suitcase 1 (to Joey)"],["h-suitcase2","Suitcase 2 (to Joey)"]
-      ])
-    );
     return normalizeTrip({
       id:SF_TRIP_ID,
       name:"Chicago → San Francisco",
@@ -2213,25 +2270,85 @@
       charges:charges,
       expenses:expenses,
       spend:{entries:entries,dismissed:{}},
-      pack:{items:items,packed:{},beforeLeave:beforeLeave,collapsed:{},blSeeded:true},
+      pack:{items:[],packed:{},beforeLeave:beforeLeave,collapsed:{},blSeeded:true},
       log:{arrived:{},arrivedAt:{},rolled:{}},
       ui:{},
-      stats:{}
+      stats:{},
+      seedRev:SF_SEED_REV
     });
   }
-  function seedSFTrip(){   /* adds the SF trip and makes it active; returns it */
-    var t=IMPORT_SF();
-    state.trips[t.id]=t;
+  IMPORT_SF.rev=SF_SEED_REV;
+
+  /* ---------- the seed applied to a trip: additive and retiring, never destructive ----------
+     Definition fields come from the seed; anything the phone owns (log, pack, budget, stats, and any
+     charge/expense/row logged locally) is left alone. A stop the seed no longer has is retired, not
+     deleted: hidden from the map, the stop list, the progress strip and the day maths, while its
+     stamps and spend rows stay in the data. Idempotent — a second pass changes no leaf. */
+  var SEED_STOP_FIELDS=["name","short","lat","lng","mi","miSrc","route","overnight","nights",
+    "hotel","hotelUrl","mapsUrl","petFee","chargerQuery","home","backup","tz","detail","note"];
+  function applySeed(t){
+    var seed=IMPORT_SF(),i;
+    if(t.seedRev===seed.seedRev)return false;
+    var byId={};(t.stops||[]).forEach(function(s,k){byId[s.id]=k;});
+    var seedIds={};
+    seed.stops.forEach(function(ss){
+      seedIds[ss.id]=true;
+      var k=byId[ss.id];
+      if(k===undefined){t.stops.push(ss);byId[ss.id]=t.stops.length-1;return;}
+      var s=t.stops[k];
+      SEED_STOP_FIELDS.forEach(function(f){
+        if(ss[f]===undefined)delete s[f];else s[f]=ss[f];
+      });
+      delete s.retired;
+    });
+    t.stops.forEach(function(s){if(!seedIds[s.id])s.retired=true;});   /* kept, hidden, never deleted */
+    /* the seed owns the itinerary order; retired stops keep their own order and sit after it, out of the way */
+    var order={};seed.stops.forEach(function(ss,k){order[ss.id]=k;});
+    t.stops=seed.stops.map(function(ss){return t.stops[byId[ss.id]];})
+      .concat(t.stops.filter(function(s){return order[s.id]===undefined;}));
+    function mergeById(list,rows){
+      var at={};list.forEach(function(x,k){at[x.id]=k;});
+      rows.forEach(function(r){
+        if(at[r.id]===undefined){list.push(JSON.parse(JSON.stringify(r)));at[r.id]=list.length-1;}
+        else list[at[r.id]]=JSON.parse(JSON.stringify(r));
+      });
+      return list;
+    }
+    t.charges=mergeById(t.charges||[],seed.charges);       /* locally logged ids the seed lacks are kept */
+    t.expenses=mergeById(t.expenses||[],seed.expenses);
+    var rowAt={};t.spend.entries.forEach(function(e,k){rowAt[e.id]=k;});
+    seed.spend.entries.forEach(function(r){
+      var k=rowAt[r.id];
+      if(k===undefined){t.spend.entries.push(JSON.parse(JSON.stringify(r)));return;}
+      if(t.spend.entries[k].planned===false)return;         /* confirmed by hand: the seed never overwrites it */
+      t.spend.entries[k]=JSON.parse(JSON.stringify(r));
+    });
+    if(!isYMD(t.departDate)||t.seedRev===undefined)t.departDate=seed.departDate;
+    t.seedRev=seed.seedRev;
+    normalizeTrip(t);
+    return true;
+  }
+  function seedSFTrip(){   /* first run and the Restore link: build it, then run the same seed pass */
+    var t=state.trips[SF_TRIP_ID];
+    if(!t){t=IMPORT_SF();state.trips[t.id]=t;}
+    else applySeed(t);
     state.meta.sfSeededV1=true;
     setActive(t.id);
     saveSeed(state);
     return t;
   }
+  function refreshSFSeed(){   /* boot: an SF trip already here but built from an older revision */
+    var t=state.trips[SF_TRIP_ID];
+    if(!t)return false;
+    if(!applySeed(t))return false;
+    saveSeed(state);
+    return true;
+  }
 
   /* ---------- TRIPS list: the launch screen ---------- */
   var STATUS_LABEL={planning:"Planning",live:"Live",done:"Done"},STATUS_RANK={live:0,planning:1,done:2};
   function tripSummary(t){   /* miles · days · actual spend, computed without touching the active-trip route model */
-    var st=(t.stops||[]).filter(function(s){return s&&isFinite(+s.lat)&&isFinite(+s.lng);});
+    var st=liveStops(t).filter(function(s){return isFinite(+s.lat)&&isFinite(+s.lng);});
     var mi=0,off=[],i;
     for(i=0;i<st.length;i++){if(i)mi+=+st[i].mi||0;off.push(i===0?0:off[i-1]+(i===1?0:nightsOf(st[i-1])));}
     var days=off.length?off[off.length-1]+1:0;
@@ -2348,9 +2465,28 @@
   }
   function isMileMarkerExport(o){return !!(o&&typeof o==="object"&&o.trips&&typeof o.trips==="object");}
   function isSfMoveExport(o){return !!(o&&typeof o==="object"&&!o.trips&&((o.trip&&o.trip.arrived)||(o.spend&&Array.isArray(o.spend.entries))));}
-  function sfTrip(){   /* the SF trip, seeded from IMPORT_SF if this install never had it */
+  function sfTrip(){   /* the SF trip, seeded through the same path as first run if this install never had it */
     if(!state.trips[SF_TRIP_ID]){state.trips[SF_TRIP_ID]=IMPORT_SF();state.meta.sfSeededV1=true;}
+    else applySeed(state.trips[SF_TRIP_ID]);
     return state.trips[SF_TRIP_ID];
+  }
+  /* sf-move's Pack tab is the Sort catalogue filtered by per-device `disp`, so the grouping only exists
+     in a paste. car/ship/joey become the item's group, undecided lands in its own group, leave/sell and
+     anything in `removed` is not packed at all and so is not an item. Ids are the catalogue's, which is
+     why a pasted `packed` still lands on them. */
+  var PACK_GROUP_FOR={car:"car",ship:"ship",joey:"joey",undecided:"undecided"};
+  function packFromDisp(t,disp,removed){
+    if(!disp||typeof disp!=="object")return 0;
+    var title={};SF_PACK_CATALOGUE.forEach(function(r){title[r[0]]=r[1];});
+    var gone=removed||{},keep=[],n=0;
+    (t.pack.items||[]).forEach(function(it){if(!title[it.id])keep.push(it);});   /* items added on this trip stay */
+    SF_PACK_CATALOGUE.forEach(function(r){
+      var id=r[0],g=PACK_GROUP_FOR[disp[id]];
+      if(!g||gone[id])return;
+      keep.push({id:id,t:title[id],group:g});n++;
+    });
+    t.pack.items=keep;
+    return n;
   }
   function mergeSfMove(o){   /* pasted state wins; idempotent — a second paste changes no leaf */
     var t=sfTrip(),n={stamps:0,packed:0,rows:0,budget:null};
@@ -2382,6 +2518,7 @@
       t.spend.dismissed[k]=true;
       if(byId[k]!==undefined){t.spend.entries=t.spend.entries.filter(function(x){return x.id!==k;});byId={};t.spend.entries.forEach(function(x,i){byId[x.id]=i;});}
     });
+    n.items=packFromDisp(t,o.disp,o.removed);
     if(+ps.budget>0){t.spend.budget=+ps.budget;n.budget=+ps.budget;}
     if(o.stats&&typeof o.stats==="object")t.stats=JSON.parse(JSON.stringify(o.stats));
     normalizeTrip(t);
@@ -2404,7 +2541,7 @@
       ta.value="";
       renderTrips();refreshRestore();
       st.textContent="sf-move data merged onto the SF trip";
-      toast("Imported · "+n.stamps+" stamps · "+n.packed+" packed · "+n.rows+" spend rows"+(n.budget?" · budget "+money(n.budget):""));
+      toast("Imported · "+n.stamps+" stamps · "+n.items+" pack items · "+n.packed+" packed · "+n.rows+" spend rows"+(n.budget?" · budget "+money(n.budget):""));
       return;
     }
     st.textContent="I don't recognise that export.";
@@ -2476,6 +2613,7 @@
   /* one-time: a brand-new install opens on the SF trip. An install that already made trips is left alone —
      "Restore the SF trip" at the bottom of the Trips list does the same thing on demand. */
   if(!Object.keys(state.trips).length&&!state.meta.sfSeededV1)seedSFTrip();
+  else refreshSFSeed();   /* an SF trip built from an older revision is brought forward, never rebuilt */
   refreshRestore();
   buildRoute();
   if(activeTripId&&state.trips[activeTripId]){
