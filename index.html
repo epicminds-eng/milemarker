@@ -200,6 +200,9 @@
   .chgrow.open .chgl{display:block;animation:springIn .35s cubic-bezier(.22,1,.36,1) both;}
   .chgrow .chgl a{display:block;font-size:13px;line-height:1.35;color:var(--label);text-decoration:none;padding:8px 4px;border-top:.5px solid var(--sep);}
   .chgrow .chgl a small{color:var(--secondary);font-size:13px;}
+  .chgrow .chgl .chgg{font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--secondary);
+    padding:var(--s3) var(--s1) var(--s1);border-top:.5px solid var(--sep);}
+  .chgrow .chgl .chgg + a{border-top:none;}
   .triptoggle{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--cell);border-radius:14px;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
   .triptoggle .tl{font-size:16px;font-weight:600;}
   .triptoggle .ts{font-size:12px;color:var(--secondary);margin-top:2px;}
@@ -606,7 +609,7 @@
     </div>
   </div>
 
-  <div class="appver" id="appVer">Mile Marker v3 · build 2026-09-10 · e07279c</div>
+  <div class="appver" id="appVer">Mile Marker v4 · build 2026-09-11 · 46d06fa</div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 </div>
@@ -851,10 +854,29 @@
     best.leg=leg;best.miles=RT.CUM[leg]+(legLen?posLen/legLen:0)*(+RT.stops[leg+1].mi||0);
     return best;
   }
+  /* The stop that CLOSES a day — the one you sleep at. This is the authority for which stop a
+     charge or a spend row belongs to: sf-move stamps charges with nearestStop(), so a Day 5 session
+     in Buckeye comes over labelled "moms". The day is right, the stopId is not. Works off a trip
+     object so the import path (no active route model) gets the same answer as the renderers. */
+  function stopClosingDay(t,d){
+    var st=liveStops(t).filter(function(x){return isFinite(+x.lat)&&isFinite(+x.lng);});
+    if(d<=0||!st.length)return null;
+    var off=[],i;
+    for(i=0;i<st.length;i++)off.push(i===0?0:off[i-1]+(i===1?0:nightsOf(st[i-1])));
+    for(i=1;i<st.length;i++)if(off[i]===d-1)return st[i];
+    return st[st.length-1];
+  }
   function stopForDay(d){
     if(d<=0||!RT.stops.length)return null;
     for(var i=1;i<RT.stops.length;i++)if(RT.OFF[i]===d-1)return RT.stops[i];
     return RT.stops[RT.stops.length-1];
+  }
+  /* stamp a row's stop from its day, keeping whatever it arrived with as srcStopId for reference */
+  function stampStopFromDay(t,row,incomingStopId){
+    var s=stopClosingDay(t,row.day);
+    row.stopId=s?s.id:null;
+    if(incomingStopId&&incomingStopId!==row.stopId)row.srcStopId=incomingStopId;else delete row.srcStopId;
+    return row;
   }
   function dayLabel(d){if(d<=0)return "Pre-trip";var s=stopForDay(d);return "Day "+d+(s?" · "+esc(s.short||s.name||""):"");}
   function dayTitle(d){var dt=addDays(departDate(),d-1);return WDL[dt.getDay()]+" · Day "+d;}
@@ -1017,13 +1039,31 @@
     }
     w.appendChild(h);
     var l=el("div","chgl");
-    list.forEach(function(c){
+    function row(c){
       var a=document.createElement("a");
       a.href="https://maps.apple.com/?address="+encodeURIComponent(c.addr||c.name||"");a.target="_blank";a.rel="noopener";
-      if(c.planned){a.className="plan";a.innerHTML='<span class="cdot plan"></span>Planned · '+esc(c.name||"")+(c.leg?' <small>· '+esc(c.leg)+'</small>':'');l.appendChild(a);return;}
-      a.innerHTML='<span class="cdot"></span>'+esc(fmtShort(parseYMD(c.date))+" "+(c.time||""))+' · '+esc(chgPlace(c))+' <small>· '+(Math.round((c.kwh||0)*10)/10)+' kWh @ $'+(+c.rate||0).toFixed(2)+' · '+money2(c.cost||0)+(c.min?' · '+c.min+' min':'')+'</small>';
-      l.appendChild(a);
+      if(c.planned)a.className="plan";
+      a.innerHTML=c.planned
+        ?('<span class="cdot plan"></span>Planned · '+esc(c.name||"")+(c.leg?' <small>· '+esc(c.leg)+'</small>':''))
+        :('<span class="cdot"></span>'+esc(fmtShort(parseYMD(c.date))+" "+(c.time||""))+' · '+esc(chgPlace(c))+' <small>· '+(Math.round((c.kwh||0)*10)/10)+' kWh @ $'+(+c.rate||0).toFixed(2)+' · '+money2(c.cost||0)+(c.min?' · '+c.min+' min':'')+'</small>');
+      return a;
+    }
+    /* grouped by the stop that closes the session's day — never by the stop nearest the charger */
+    var t0=T(),byDay={},days=[],unplaced=[];
+    list.forEach(function(c){
+      if(c.planned||!c.date){unplaced.push(c);return;}
+      var d=dayForDate(parseYMD(c.date));
+      if(!byDay[d]){byDay[d]=[];days.push(d);}
+      byDay[d].push(c);
     });
+    days.sort(function(a,b){return a-b;}).forEach(function(d){
+      var st=stopClosingDay(t0,d);
+      l.appendChild(el("div","chgg",esc(dayLabel(d))));
+      byDay[d].sort(function(a,b){return chgTs(a)-chgTs(b);}).forEach(function(c){
+        var a=row(c);a.setAttribute("data-stop",st?st.id:"");a.setAttribute("data-day",d);l.appendChild(a);
+      });
+    });
+    unplaced.forEach(function(c){l.appendChild(row(c));});
     w.appendChild(l);
   }
   function ensureTripMap(){buildTripMap();updateTripMap();renderCharging();}
@@ -1830,7 +1870,6 @@
       card.appendChild(sec);wrap.appendChild(card);
     });
   }
-  function nearestStop(lat,lng){var best=null,bd=Infinity;RT.stops.forEach(function(s){var d=hav({lat:lat,lng:lng},{lat:+s.lat,lng:+s.lng});if(d<bd){bd=d;best=s;}});return best;}
   function isSeededId(id){
     var t=T();if(!t)return false;
     return t.charges.some(function(c){return c.id===id;})||t.expenses.some(function(x){return x.id===id;});
@@ -1841,8 +1880,8 @@
     t.spend.entries.forEach(function(e){have[e.id]=true;});
     t.charges.forEach(function(c){
       if(c.planned||have[c.id]||dis[c.id]||!c.date)return;   /* planned chargers are map-only until logged as a real session */
-      var s=c.stopId?RT.stops.filter(function(x){return x.id===c.stopId;})[0]:nearestStop(+c.lat,+c.lng);
-      var e={id:c.id,amount:+c.cost||0,cat:"charging",note:c.name||"Charging",day:dayForDate(parseYMD(c.date)),stopId:s?s.id:null,ts:chgTs(c),planned:false,billsLater:false};
+      var e={id:c.id,amount:+c.cost||0,cat:"charging",note:c.name||"Charging",day:dayForDate(parseYMD(c.date)),ts:chgTs(c),planned:false,billsLater:false};
+      stampStopFromDay(t,e,c.stopId||null);
       if(c.kwh>0)e.kwh=c.kwh;
       t.spend.entries.push(e);added=true;
     });
@@ -1854,8 +1893,9 @@
     t.spend.entries.forEach(function(e){have[e.id]=true;});
     t.expenses.forEach(function(x){
       if(have[x.id]||dis[x.id]||!x.date)return;
-      var d=dayForDate(parseYMD(x.date)),st=stopForDay(d);
-      t.spend.entries.push({id:x.id,amount:+x.amount||0,cat:CATMAP[x.cat]?x.cat:"misc",note:x.note||"",day:d,stopId:st?st.id:null,ts:chgTs(x),planned:false,billsLater:false});added=true;
+      var xe={id:x.id,amount:+x.amount||0,cat:CATMAP[x.cat]?x.cat:"misc",note:x.note||"",day:dayForDate(parseYMD(x.date)),ts:chgTs(x),planned:false,billsLater:false};
+      stampStopFromDay(t,xe,x.stopId||null);
+      t.spend.entries.push(xe);added=true;
     });
     if(added)saveSeed(state);
   }
@@ -2097,7 +2137,7 @@
      Pack items are NOT seeded here: sf-move's Pack tab is the Sort catalogue filtered by per-device `disp`,
      so the catalogue below is code and the grouping arrives with an sf-move paste (mergeSfMove). */
   var SF_TRIP_ID="sf-2026";
-  var SF_SEED_REV="sf-move v107 0d8b246";
+  var SF_SEED_REV="sf-move v110 b2739ec";
   /* the Sort catalogue, ids verbatim — mergeSfMove pairs these with the pasted `disp` to build pack.items */
   var SF_PACK_CATALOGUE=[
       ["g-bag","Gamer bag + current clubs"],["g-shoes","Golf shoes"],["g-gps","Golf GPS / rangefinder"],
@@ -2190,36 +2230,38 @@
        mapsUrl:"https://maps.apple.com/?address=1442A%20Grove%20St%2C%20San%20Francisco%2C%20CA%2094117",
        chargerQuery:"Tesla Supercharger San Francisco CA"}
     ];
-    /* Supercharger sessions, sf-move's CHARGES verbatim (chg-oasis is planned: hollow node, no Spend row) */
+    /* Supercharger sessions, sf-move's CHARGES verbatim. v109 fulfilled the planned Tesla Oasis:
+       chg-oasis is gone and chg-029 is the real session, so nothing in the trip is planned any more. */
     var charges=[
-      {id:"chg-oasis",planned:true,name:"Tesla Oasis – Lost Hills, CA",addr:"22422 Highway 46, Lost Hills, CA 93249",lat:35.6175,lng:-119.6945,leg:"Mom's → Coalinga"},
-      {id:"chg-001",name:"Normal, IL – West Raab Rd",addr:"610 West Raab Rd, Normal, IL 61761",lat:40.5327,lng:-88.9918,date:"2026-09-06",time:"10:27",kwh:29.83,rate:0.35,cost:10.43,min:14},
-      {id:"chg-002",name:"Springfield, IL – South Dirksen",addr:"1501 S Dirksen Pkwy, Springfield, IL 62703",lat:39.7755,lng:-89.6089,date:"2026-09-06",time:"11:41",kwh:43.79,rate:0.36,cost:15.76,min:28},
-      {id:"chg-003",name:"Fenton, MO – Wally's",addr:"950 Assembly Pkwy, Fenton, MO 63026",lat:38.5093,lng:-90.4527,date:"2026-09-06",time:"13:45",kwh:36.59,rate:0.44,cost:16.10,min:21},
-      {id:"chg-004",name:"Rolla, MO",addr:"1705 Martin Springs Dr, Rolla, MO 65401",lat:37.9448,lng:-91.7967,date:"2026-09-06",time:"15:23",kwh:35.66,rate:0.37,cost:13.19,min:21},
-      {id:"chg-005",name:"Springfield, MO – North (Buc-ee's)",addr:"3284 N Mulroy Rd, Springfield, MO 65803",lat:37.2683,lng:-93.2340,date:"2026-09-06",time:"17:14",kwh:45.64,rate:0.37,cost:16.88,min:26},
-      {id:"chg-006",name:"Joplin, MO – Highway 43",addr:"4240 Hwy 43, Joplin, MO 64803",lat:37.0392,lng:-94.5487,date:"2026-09-07",time:"09:35",kwh:36.29,rate:0.37,cost:13.42,min:23},
-      {id:"chg-007",name:"Tulsa, OK – East 41st St",addr:"5726 E 41st St, Tulsa, OK 74135",lat:36.1006,lng:-95.8850,date:"2026-09-07",time:"11:46",kwh:48.25,rate:0.40,cost:19.30,min:33},
-      {id:"chg-008",name:"Oklahoma City, OK – West Memorial",addr:"3437 W Memorial Rd, Oklahoma City, OK 73134",lat:35.6086,lng:-97.5766,date:"2026-09-07",time:"13:48",kwh:40.29,rate:0.46,cost:18.53,min:27},
-      {id:"chg-009",name:"Calumet, OK – Cherokee Trading Post",addr:"245 S Walbaum Rd, Calumet, OK 73014",lat:35.6003,lng:-98.1236,date:"2026-09-07",time:"15:00",kwh:23.53,rate:0.56,cost:13.17,min:14},
-      {id:"chg-010",name:"Elk City, OK",addr:"2001 E 7th St, Elk City, OK 73644",lat:35.4088,lng:-99.3854,date:"2026-09-07",time:"16:15",kwh:27.21,rate:0.48,cost:13.06,min:16},
-      {id:"chg-011",name:"Shamrock, TX",addr:"107 E 12th St, Shamrock, TX 79079",lat:35.2145,lng:-100.2490,date:"2026-09-07",time:"17:17",kwh:43.88,rate:0.38,cost:16.67,min:31},
-      {id:"chg-012",name:"Amarillo, TX – I-40 (Buc-ee's)",addr:"9900 I-40, Amarillo, TX 79118",lat:35.1725,lng:-101.7150,date:"2026-09-07",time:"18:58",kwh:37.12,rate:0.38,cost:14.10,min:18},
-      {id:"chg-013",name:"Amarillo, TX – West Amarillo Blvd",addr:"8231 W Amarillo Blvd, Amarillo, TX 79124",lat:35.1975,lng:-101.9350,date:"2026-09-08",time:"07:10",kwh:21.42,rate:0.38,cost:8.14,min:19},
-      {id:"chg-014",name:"Tucumcari, NM",addr:"2624 S Adams St, Tucumcari, NM 88401",lat:35.1520,lng:-103.7090,date:"2026-09-08",time:"08:58",kwh:47.81,rate:0.40,cost:19.12,min:32},
-      {id:"chg-015",name:"Santa Rosa, NM",addr:"2516 Historic Route 66, Santa Rosa, NM 88435",lat:34.9381,lng:-104.6825,date:"2026-09-08",time:"10:18",kwh:29.42,rate:0.41,cost:12.06,min:24},
-      {id:"chg-016",name:"Albuquerque, NM – 12th St NW",addr:"2510 12th St NW, Albuquerque, NM 87104",lat:35.1085,lng:-106.6640,date:"2026-09-08",time:"12:21",kwh:44.39,rate:0.42,cost:18.64,min:27},
-      {id:"chg-017",name:"Milan, NM",addr:"1500 Willow Dr, Milan, NM 87021",lat:35.1690,lng:-107.8940,date:"2026-09-08",time:"13:55",kwh:35.55,rate:0.40,cost:14.22,min:24},
-      {id:"chg-018",name:"Gallup, NM",addr:"111 Twin Buttes Rd, Gallup, NM 87301",lat:35.5110,lng:-108.7530,date:"2026-09-08",time:"15:15",kwh:18.28,rate:0.42,cost:7.67,min:20},
-      {id:"chg-019",name:"Holbrook, AZ – Navajo Blvd",addr:"2096 Navajo Blvd, Holbrook, AZ 86025",lat:34.9080,lng:-110.1490,date:"2026-09-08",time:"18:09",kwh:23.83,rate:0.41,cost:9.77,min:22},
-      {id:"chg-020",name:"Holbrook, AZ – Navajo Blvd",addr:"2096 Navajo Blvd, Holbrook, AZ 86025",lat:34.9080,lng:-110.1490,date:"2026-09-08",time:"17:05",kwh:21.80,rate:0.41,cost:8.93,min:11},
-      {id:"chg-021",name:"Payson, AZ – AZ-260",addr:"142 AZ-260, Payson, AZ 85541",lat:34.2420,lng:-111.3230,date:"2026-09-09",time:"12:58",kwh:30.59,rate:0.47,cost:14.37,min:24},
-      {id:"chg-022",name:"Chandler, AZ – West Ray Rd",addr:"3075 W Ray Rd, Chandler, AZ 85226",lat:33.3200,lng:-111.9670,date:"2026-09-09",time:"13:51",kwh:26.76,rate:0.49,cost:13.11,min:22},
-      {id:"chg-023",name:"Buckeye, AZ",addr:"416 S Watson Rd, Buckeye AZ 85326",lat:33.444,lng:-112.556,date:"2026-09-10",time:"07:16",kwh:14.57,rate:0.37,cost:5.39,min:11},
-      {id:"chg-024",name:"Quartzsite, AZ",addr:"1451 W Main St, Quartzsite AZ 85346",lat:33.664,lng:-114.231,date:"2026-09-10",time:"08:53",kwh:43.65,rate:0.41,cost:17.89,min:29},
-      {id:"chg-025",name:"Indio, CA",addr:"42100 Jackson St, Indio CA 92203",lat:33.737,lng:-116.217,date:"2026-09-10",time:"11:00",kwh:36.89,rate:0.44,cost:16.23,min:24},
-      {id:"chg-026",name:"Ontario, CA",addr:"3760 Inland Empire Blvd, Ontario CA 91764",lat:34.068,lng:-117.588,date:"2026-09-10",time:"12:42",kwh:31.68,rate:0.51,cost:16.15,min:19},
-      {id:"chg-027",name:"Castaic, CA",addr:"31884 Castaic Rd, Castaic CA 91384",lat:34.489,lng:-118.620,date:"2026-09-10",time:"14:23",kwh:37.39,rate:0.47,cost:17.57,min:28}
+      {id:"chg-001", name:"Normal, IL – West Raab Rd", addr:"610 West Raab Rd, Normal, IL 61761", lat:40.5327, lng:-88.9918, date:"2026-09-06", time:"10:27", kwh:29.83, rate:0.35, cost:10.43, min:14},
+      {id:"chg-002", name:"Springfield, IL – South Dirksen", addr:"1501 S Dirksen Pkwy, Springfield, IL 62703", lat:39.7755, lng:-89.6089, date:"2026-09-06", time:"11:41", kwh:43.79, rate:0.36, cost:15.76, min:28},
+      {id:"chg-003", name:"Fenton, MO – Wally's", addr:"950 Assembly Pkwy, Fenton, MO 63026", lat:38.5093, lng:-90.4527, date:"2026-09-06", time:"13:45", kwh:36.59, rate:0.44, cost:16.10, min:21},
+      {id:"chg-004", name:"Rolla, MO", addr:"1705 Martin Springs Dr, Rolla, MO 65401", lat:37.9448, lng:-91.7967, date:"2026-09-06", time:"15:23", kwh:35.66, rate:0.37, cost:13.19, min:21},
+      {id:"chg-005", name:"Springfield, MO – North (Buc-ee's)", addr:"3284 N Mulroy Rd, Springfield, MO 65803", lat:37.2683, lng:-93.2340, date:"2026-09-06", time:"17:14", kwh:45.64, rate:0.37, cost:16.88, min:26},
+      {id:"chg-006", name:"Joplin, MO – Highway 43", addr:"4240 Hwy 43, Joplin, MO 64803", lat:37.0392, lng:-94.5487, date:"2026-09-07", time:"09:35", kwh:36.29, rate:0.37, cost:13.42, min:23},
+      {id:"chg-007", name:"Tulsa, OK – East 41st St", addr:"5726 E 41st St, Tulsa, OK 74135", lat:36.1006, lng:-95.8850, date:"2026-09-07", time:"11:46", kwh:48.25, rate:0.40, cost:19.30, min:33},
+      {id:"chg-008", name:"Oklahoma City, OK – West Memorial", addr:"3437 W Memorial Rd, Oklahoma City, OK 73134", lat:35.6086, lng:-97.5766, date:"2026-09-07", time:"13:48", kwh:40.29, rate:0.46, cost:18.53, min:27},
+      {id:"chg-009", name:"Calumet, OK – Cherokee Trading Post", addr:"245 S Walbaum Rd, Calumet, OK 73014", lat:35.6003, lng:-98.1236, date:"2026-09-07", time:"15:00", kwh:23.53, rate:0.56, cost:13.17, min:14},
+      {id:"chg-010", name:"Elk City, OK", addr:"2001 E 7th St, Elk City, OK 73644", lat:35.4088, lng:-99.3854, date:"2026-09-07", time:"16:15", kwh:27.21, rate:0.48, cost:13.06, min:16},
+      {id:"chg-011", name:"Shamrock, TX", addr:"107 E 12th St, Shamrock, TX 79079", lat:35.2145, lng:-100.2490, date:"2026-09-07", time:"17:17", kwh:43.88, rate:0.38, cost:16.67, min:31},
+      {id:"chg-012", name:"Amarillo, TX – I-40 (Buc-ee's)", addr:"9900 I-40, Amarillo, TX 79118", lat:35.1725, lng:-101.7150, date:"2026-09-07", time:"18:58", kwh:37.12, rate:0.38, cost:14.10, min:18},
+      {id:"chg-013", name:"Amarillo, TX – West Amarillo Blvd", addr:"8231 W Amarillo Blvd, Amarillo, TX 79124", lat:35.1975, lng:-101.9350, date:"2026-09-08", time:"07:10", kwh:21.42, rate:0.38, cost:8.14, min:19},
+      {id:"chg-014", name:"Tucumcari, NM", addr:"2624 S Adams St, Tucumcari, NM 88401", lat:35.1520, lng:-103.7090, date:"2026-09-08", time:"08:58", kwh:47.81, rate:0.40, cost:19.12, min:32},
+      {id:"chg-015", name:"Santa Rosa, NM", addr:"2516 Historic Route 66, Santa Rosa, NM 88435", lat:34.9381, lng:-104.6825, date:"2026-09-08", time:"10:18", kwh:29.42, rate:0.41, cost:12.06, min:24},
+      {id:"chg-016", name:"Albuquerque, NM – 12th St NW", addr:"2510 12th St NW, Albuquerque, NM 87104", lat:35.1085, lng:-106.6640, date:"2026-09-08", time:"12:21", kwh:44.39, rate:0.42, cost:18.64, min:27},
+      {id:"chg-017", name:"Milan, NM", addr:"1500 Willow Dr, Milan, NM 87021", lat:35.1690, lng:-107.8940, date:"2026-09-08", time:"13:55", kwh:35.55, rate:0.40, cost:14.22, min:24},
+      {id:"chg-018", name:"Gallup, NM", addr:"111 Twin Buttes Rd, Gallup, NM 87301", lat:35.5110, lng:-108.7530, date:"2026-09-08", time:"15:15", kwh:18.28, rate:0.42, cost:7.67, min:20},
+      {id:"chg-019", name:"Holbrook, AZ – Navajo Blvd", addr:"2096 Navajo Blvd, Holbrook, AZ 86025", lat:34.9080, lng:-110.1490, date:"2026-09-08", time:"18:09", kwh:23.83, rate:0.41, cost:9.77, min:22},
+      {id:"chg-020", name:"Holbrook, AZ – Navajo Blvd", addr:"2096 Navajo Blvd, Holbrook, AZ 86025", lat:34.9080, lng:-110.1490, date:"2026-09-08", time:"17:05", kwh:21.80, rate:0.41, cost:8.93, min:11},
+      {id:"chg-021", name:"Payson, AZ – AZ-260", addr:"142 AZ-260, Payson, AZ 85541", lat:34.2420, lng:-111.3230, date:"2026-09-09", time:"12:58", kwh:30.59, rate:0.47, cost:14.37, min:24},
+      {id:"chg-022", name:"Chandler, AZ – West Ray Rd", addr:"3075 W Ray Rd, Chandler, AZ 85226", lat:33.3200, lng:-111.9670, date:"2026-09-09", time:"13:51", kwh:26.76, rate:0.49, cost:13.11, min:22},
+      {id:"chg-023", name:"Buckeye, AZ", addr:"416 S Watson Rd, Buckeye AZ 85326", lat:33.444, lng:-112.556, date:"2026-09-10", time:"07:16", kwh:14.57, rate:0.37, cost:5.39, min:11},
+      {id:"chg-024", name:"Quartzsite, AZ", addr:"1451 W Main St, Quartzsite AZ 85346", lat:33.664, lng:-114.231, date:"2026-09-10", time:"08:53", kwh:43.65, rate:0.41, cost:17.89, min:29},
+      {id:"chg-025", name:"Indio, CA", addr:"42100 Jackson St, Indio CA 92203", lat:33.737, lng:-116.217, date:"2026-09-10", time:"11:00", kwh:36.89, rate:0.44, cost:16.23, min:24},
+      {id:"chg-026", name:"Ontario, CA", addr:"3760 Inland Empire Blvd, Ontario CA 91764", lat:34.068, lng:-117.588, date:"2026-09-10", time:"12:42", kwh:31.68, rate:0.51, cost:16.15, min:19},
+      {id:"chg-027", name:"Castaic, CA", addr:"31884 Castaic Rd, Castaic CA 91384", lat:34.489, lng:-118.620, date:"2026-09-10", time:"14:23", kwh:37.39, rate:0.47, cost:17.57, min:28},
+      {id:"chg-028", name:"Tejon Ranch, CA", addr:"5701 Outlets at Tejon Pkwy, Arvin CA 93203", lat:35.052, lng:-118.870, date:"2026-09-10", time:"15:36", kwh:28.67, rate:0.44, cost:12.61, min:20},
+      {id:"chg-029", name:"Tesla Oasis · Lost Hills, CA", addr:"22422 Highway 46, Lost Hills CA 93249", lat:35.617, lng:-119.694, date:"2026-09-10", time:"16:49", kwh:20.72, rate:0.44, cost:9.11, min:14}
     ];
     var expenses=[
       {id:"exp-001",cat:"groceries",amount:10.65,note:"County Market · Springfield IL",date:"2026-09-06",time:"11:48"},
@@ -2314,7 +2356,11 @@
       });
       return list;
     }
-    t.charges=mergeById(t.charges||[],seed.charges);       /* locally logged ids the seed lacks are kept */
+    /* a PLANNED charger the seed no longer carries has been fulfilled (v109 turned chg-oasis into
+       chg-029) — it goes; a real session the seed lacks was logged on the phone and stays */
+    var seedChg={};seed.charges.forEach(function(c){seedChg[c.id]=true;});
+    t.charges=(t.charges||[]).filter(function(c){return seedChg[c.id]||!c.planned;});
+    t.charges=mergeById(t.charges,seed.charges);           /* locally logged ids the seed lacks are kept */
     t.expenses=mergeById(t.expenses||[],seed.expenses);
     var rowAt={};t.spend.entries.forEach(function(e,k){rowAt[e.id]=k;});
     seed.spend.entries.forEach(function(r){
@@ -2488,6 +2534,20 @@
     t.pack.items=keep;
     return n;
   }
+  /* A planned row never outlives its actual: once a day has a real hotel (or pet-fee) row, the
+     estimate for that day is gone, whatever its id. Scanning by day + category rather than by id is
+     what keeps a renamed or re-issued seed row from double-counting. Idempotent. */
+  var PLANNED_SWEEP=["hotel","kane"];
+  function dropStalePlanned(t){
+    var actual={};
+    t.spend.entries.forEach(function(e){
+      if(e.planned||PLANNED_SWEEP.indexOf(e.cat)<0)return;
+      actual[e.cat+"|"+e.day]=true;
+    });
+    t.spend.entries=t.spend.entries.filter(function(e){
+      return !(e.planned&&actual[e.cat+"|"+e.day]);
+    });
+  }
   function mergeSfMove(o){   /* pasted state wins; idempotent — a second paste changes no leaf */
     var t=sfTrip(),n={stamps:0,packed:0,rows:0,budget:null};
     var pt=o.trip||{},ps=o.spend||{};
@@ -2510,6 +2570,7 @@
       if(!e||!e.id)return;
       if(dis[e.id])return;                                   /* dismissed rows land in spend.dismissed, not in entries */
       var row=JSON.parse(JSON.stringify(e));
+      if(typeof row.day==="number")stampStopFromDay(t,row,row.stopId||null);   /* day is authoritative, the pasted stopId is not */
       if(byId[row.id]!==undefined)t.spend.entries[byId[row.id]]=row;   /* same id → replace: confirmed amounts + planned:false arrive here */
       else{byId[row.id]=t.spend.entries.length;t.spend.entries.push(row);}
       n.rows++;
@@ -2518,6 +2579,7 @@
       t.spend.dismissed[k]=true;
       if(byId[k]!==undefined){t.spend.entries=t.spend.entries.filter(function(x){return x.id!==k;});byId={};t.spend.entries.forEach(function(x,i){byId[x.id]=i;});}
     });
+    dropStalePlanned(t);
     n.items=packFromDisp(t,o.disp,o.removed);
     if(+ps.budget>0){t.spend.budget=+ps.budget;n.budget=+ps.budget;}
     if(o.stats&&typeof o.stats==="object")t.stats=JSON.parse(JSON.stringify(o.stats));

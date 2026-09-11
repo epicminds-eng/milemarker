@@ -25,7 +25,11 @@ const TAG = [                          /* [Sort item label, disposition] */
   ["Launch monitor (Approach)", "ship"],
   ["Kettlebell", "sell"]
 ];
-const REMOVE = "Printer";              /* → state.removed, must not become a pack item */
+/* Removed in Sort. sf-move's remove handler does `delete state.disp[it.id]`, so a real export can
+   never carry a disposition AND a `removed` flag for the same id — tagging it here then removing it
+   would just wipe the tag. The both-set case (which is what proves Mile Marker honours `removed`
+   rather than merely lacking a disp) is constructed in tests/smoke.mjs (j) instead. */
+const REMOVE = "Printer";
 const PACK_ME = TAG.filter(x => x[1] === "car").map(x => x[0]);
 
 if (!existsSync(SRC)) {

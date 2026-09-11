@@ -86,7 +86,8 @@ const buildTwoShapedState = () => ({
         }),
         { id: "chg-006", name: "Joplin, MO", addr: "Joplin", lat: 37.0392, lng: -94.5487, date: "2026-09-07", time: "09:35", kwh: 36.29, rate: 0.37, cost: 13.42, min: 23 },
         { id: "chg-007", name: "Tulsa, OK", addr: "Tulsa", lat: 36.1006, lng: -95.885, date: "2026-09-07", time: "11:46", kwh: 48.25, rate: 0.4, cost: 19.3, min: 33 },
-        { id: "chg-local", name: "Logged on the phone", addr: "Somewhere", lat: 36.0, lng: -96.0, date: "2026-09-07", time: "12:30", kwh: 10, rate: 0.4, cost: 4, min: 8 }
+        { id: "chg-local", name: "Logged on the phone", addr: "Somewhere", lat: 36.0, lng: -96.0, date: "2026-09-07", time: "12:30", kwh: 10, rate: 0.4, cost: 4, min: 8 },
+        { id: "chg-oasis", planned: true, name: "Tesla Oasis – Lost Hills, CA", addr: "22422 Highway 46, Lost Hills, CA 93249", lat: 35.6175, lng: -119.6945, leg: "Mom's → Coalinga" }
       ],
       expenses: [{ id: "exp-001", cat: "groceries", amount: 10.65, note: "County Market · Springfield IL", date: "2026-09-06", time: "11:48" }],
       spend: {
@@ -262,7 +263,7 @@ const run = async () => {
         if (l && l.miles > bm && l.miles <= RT.TOTAL) { bm = l.miles; best = c; } });
       return best ? best.id + "|" + best.name : "none"; })()
   }));
-  eq("seed revision recorded", sf.rev, "sf-move v107 0d8b246");
+  eq("seed revision recorded", sf.rev, "sf-move v110 b2739ec");
   eq("trip carries the seed revision", sf.seedRev, sf.rev);
   eq("TOTAL == the sum of IMPORT_SF's legs", sf.total, sf.seedTotal);
   eq("6 days", sf.days, 6);
@@ -271,23 +272,29 @@ const run = async () => {
     "America/Chicago,America/Chicago,America/Chicago,America/Phoenix,America/Phoenix,America/Los_Angeles,America/Los_Angeles");
   eq("WAYPTS rebuilt as per-leg routes", sf.wp, 23);
   eq("charges = IMPORT_SF's sessions", sf.real, sf.seedReal);
-  eq("1 planned charger", sf.planned, 1);
+  eq("29 logged sessions", sf.real, 29);
+  eq("nothing planned any more — v109 fulfilled the Oasis", sf.planned, 0);
   eq("meta.sfSeededV1 flagged", sf.seeded, true);
   const sfProg = await page.locator("#tripProg").innerText();
   ok(`progress strip shows ${sf.total.toLocaleString()} mi`, sfProg.includes(sf.total.toLocaleString()), sfProg.split("\n")[1]);
-  eq("furthest logged charger is Castaic", sf.furthest.split("|")[0], "chg-027");
-  ok("Castaic is the Castaic, CA session", /Castaic/.test(sf.furthest), sf.furthest);
+  eq("furthest logged charger is chg-029", sf.furthest.split("|")[0], "chg-029");
+  ok("chg-029 is Tesla Oasis, Lost Hills", /Tesla Oasis/.test(sf.furthest) && /Lost Hills/.test(sf.furthest), sf.furthest);
   const dots = await page.evaluate(() => [...document.querySelectorAll("#tripProg .tps")].map(d => d.className));
   eq("7 stop dots", dots.length, 7);
   ok("Mom's passed", dots[4].includes("on"), dots.join(" | "));
   ok("SF not yet reached", dots[6].includes("up"), dots.join(" | "));
   const sfChg = await page.locator("#chgRow .chgh").innerText();
-  ok(`charging row: ${sf.real} stops, 1 planned`,
-    new RegExp(`${sf.real}\\s+stops`).test(sfChg) && sfChg.includes("1 planned"), sfChg.replace(/\n/g, " | "));
+  ok(`charging row: ${sf.real} stops, nothing planned`,
+    new RegExp(`${sf.real}\\s+stops`).test(sfChg) && !/planned/.test(sfChg), sfChg.replace(/\n/g, " | "));
   await page.locator("#nav-spend").click();
   await page.waitForSelector("#page-spend.active");
   const day1 = await page.locator('#spendDays .spday[data-day="1"] .dayh b').innerText();
   eq("Day 1 spend $302", day1.trim(), "$302");
+  eq("Day 1 actuals sum to 301.56, rendered $302",
+    (await page.evaluate(() => {
+      let v = 0; T().spend.entries.forEach(e => { if (!e.planned && e.day === 1) v += e.amount; });
+      return Math.round(v * 100) / 100;
+    })).toFixed(2), "301.56");
   await page.locator("#nav-pack").click();
   await page.waitForSelector("#page-pack.active");
   const packGroups = await page.evaluate(() => [...document.querySelectorAll("#packGroups .sec-head .t")].map(e => e.textContent));
@@ -340,6 +347,44 @@ const run = async () => {
   eq("budget 1500", merged.budget, 1500);
   eq("spend rows = fixture entries", merged.rows, fixture.spend.entries.length);
   eq("merged onto sf-2026 only", merged.onlyTrip, "sf-2026");
+
+  /* the day decides the stop: sf-move stamps Buckeye/Quartzsite/Indio with nearestStop() → "moms",
+     but they are Day 5 sessions and Day 5 closes at Coalinga */
+  const day5 = await page.evaluate(() => {
+    const t = state.trips["sf-2026"];
+    const closes = d => { const st = t.stops.filter(s => !s.retired);
+      const off = []; st.forEach((s, i) => off.push(i === 0 ? 0 : off[i - 1] + (i === 1 ? 0 : (s0 => s0.overnight ? Math.max(1, +s0.nights || 1) : 0)(st[i - 1]))));
+      for (let i = 1; i < st.length; i++) if (off[i] === d - 1) return st[i].id;
+      return st[st.length - 1].id; };
+    const rows = t.spend.entries.filter(e => e.day === 5 && e.cat === "charging");
+    return { closesDay5: closes(5), rows: rows.map(r => ({ id: r.id, stopId: r.stopId, src: r.srcStopId || null })) };
+  });
+  eq("Day 5 closes at Coalinga", day5.closesDay5, "coalinga");
+  ok("every Day 5 charge sits on the stop that closes Day 5",
+    day5.rows.length > 0 && day5.rows.every(r => r.stopId === day5.closesDay5),
+    JSON.stringify(day5.rows));
+  ok("no Day 5 charge is filed under Mom's", day5.rows.every(r => r.stopId !== "moms"), JSON.stringify(day5.rows));
+  const moved = day5.rows.filter(r => r.src === "moms");
+  ok("the ones sf-move mis-stamped keep srcStopId moms", moved.length >= 3,
+    `${moved.length} rows carry srcStopId "moms": ${JSON.stringify(day5.rows)}`);
+
+  /* the sf-move migration fixed the Day 1 arrival date; Mile Marker copies stamps verbatim */
+  eq("Day 1 arrival lands on Sept 6",
+    (await page.evaluate(() => state.trips["sf-2026"].log.arrivedAt.strobert || "")).slice(0, 10), "2026-09-06");
+
+  /* a planned row never outlives its actual — scanned by day + category, not by id */
+  const stale = await page.evaluate(() => {
+    const e = state.trips["sf-2026"].spend.entries, bad = [];
+    ["hotel", "kane"].forEach(cat => {
+      const actualDays = new Set(e.filter(x => !x.planned && x.cat === cat).map(x => x.day));
+      e.forEach(x => { if (x.planned && x.cat === cat && actualDays.has(x.day)) bad.push(cat + " day " + x.day + " " + x.id); });
+    });
+    return { bad, hotelActualDays: [...new Set(e.filter(x => !x.planned && x.cat === "hotel").map(x => x.day))].sort(),
+      plannedKane: e.filter(x => x.planned && x.cat === "kane").map(x => x.id + "@" + x.day) };
+  });
+  ok("actual hotel rows exist to sweep against", stale.hotelActualDays.length >= 3, JSON.stringify(stale.hotelActualDays));
+  eq("no planned row survives on a day that has an actual of the same kind", stale.bad.join(","), "");
+  ok("a pet fee with no actual is left alone", stale.plannedKane.length > 0, JSON.stringify(stale.plannedKane));
 
   await page.locator(".trcard").first().click();
   await page.waitForSelector("#page-trip.active");
@@ -410,6 +455,7 @@ const run = async () => {
       charges: t.charges.length,
       dupIds: t.charges.length - new Set(t.charges.map(c => c.id)).size,
       localCharge: t.charges.some(c => c.id === "chg-local"),
+      oasis: t.charges.some(c => c.id === "chg-oasis"),
       p2: t.spend.entries.find(e => e.id === "seed-p2"),
       p3: t.spend.entries.find(e => e.id === "seed-p3"),
       strip: [...document.querySelectorAll("#tripProg .tps")].length,
@@ -417,7 +463,7 @@ const run = async () => {
       nodes: document.querySelectorAll("#nodeG circle.nd").length
     };
   });
-  eq("seedRev brought forward", ref.seedRev, "sf-move v107 0d8b246");
+  eq("seedRev brought forward", ref.seedRev, "sf-move v110 b2739ec");
   eq("abq + la retired", ref.retired, "abq,la");
   ok("retired stops are kept in the data", /abq/.test(ref.kept) && /la/.test(ref.kept), ref.kept);
   eq("route skips the retired stops", ref.route, "start,strobert,amarillo,holbrook,moms,coalinga,sf");
@@ -425,9 +471,10 @@ const run = async () => {
   eq("progress strip has 7 dots", ref.strip, 7);
   eq("map draws 7 stop nodes", ref.nodes, 7);
   ok("abq's Arrived stamp survives", ref.abqStamp, JSON.stringify(ref.abqStamp));
-  eq("28 charges after the refresh", ref.charges, 28 + 1);   /* 27 logged + 1 planned + the locally logged one */
+  eq("29 seeded + 1 locally logged charge", ref.charges, 29 + 1);
   eq("no duplicate charge ids", ref.dupIds, 0);
   ok("a locally logged charge is kept", ref.localCharge);
+  ok("the fulfilled planned charger is gone", !ref.oasis, "chg-oasis survived the refresh");
   ok("planned row refreshed to the v107 amount", ref.p2 && ref.p2.amount === 75 && ref.p2.planned === true,
     JSON.stringify(ref.p2));
   ok("a hand-confirmed row is left alone", ref.p3 && ref.p3.planned === false && ref.p3.amount === 42,
@@ -447,10 +494,17 @@ const run = async () => {
   await page.waitForSelector("#page-trip.active");
   await page.locator("#nav-back").click();
   await page.waitForSelector("#page-trips.active");
-  await page.locator("#dataPaste").fill(sfExport);
+  /* sf-move's own remove handler deletes the disp, so a real export can never carry both. Tag the
+     removed id car here so the only thing keeping it out of the pack list is `removed` itself —
+     without this the branch is untestable (drop `gone[id]` from packFromDisp and (j) still passes). */
+  const withDisp = JSON.parse(sfExport);
+  const removedId = Object.keys(withDisp.removed || {})[0];
+  withDisp.disp[removedId] = "car";
+  await page.locator("#dataPaste").fill(JSON.stringify(withDisp));
   await page.locator("#dataImport").click();
   await page.waitForFunction(() => /merged/.test(document.getElementById("dataStatus").textContent));
-  const dispExpect = fixture.disp, removedExpect = Object.keys(fixture.removed || {});
+  const dispExpect = { ...withDisp.disp }; delete dispExpect[removedId];
+  const removedExpect = Object.keys(withDisp.removed || {});
   const wantCar = Object.keys(dispExpect).filter(k => dispExpect[k] === "car").length;
   const wantShip = Object.keys(dispExpect).filter(k => dispExpect[k] === "ship").length;
   const sellIds = Object.keys(dispExpect).filter(k => ["sell", "leave"].includes(dispExpect[k]));
@@ -473,7 +527,8 @@ const run = async () => {
     packed.groups.join(" | "));
   ok("sell-tagged items are not packed", sellIds.every(id => !packed.ids.includes(id + ":")),
     `${sellIds.join(",")} vs ${packed.ids}`);
-  ok("removed items are not packed", removedExpect.every(id => !packed.ids.includes(id + ":")),
+  eq("the removed id really is tagged car in the paste", withDisp.disp[removedId], "car");
+  ok("a removed item stays out even with a car disp", removedExpect.every(id => !packed.ids.includes(id + ":")),
     `${removedExpect.join(",")} vs ${packed.ids}`);
   eq("packed count unchanged", packed.packedCount,
     Object.keys(fixture.packed).filter(k => fixture.packed[k]).length);
@@ -492,6 +547,22 @@ const run = async () => {
     await page.waitForSelector("#page-trip.active");
     await page.waitForTimeout(600);
     await page.screenshot({ path: join(SHOTS, `w${w}-2-trip.png`) });
+    /* charging row open: the sessions are grouped by the stop that closes their day.
+       The app scrolls inside #scroll, so fullPage would only ever capture one viewport. */
+    await page.evaluate(() => { if (!document.getElementById("chgRow").classList.contains("open")) document.querySelector("#chgRow .chgh").click(); });
+    await page.waitForTimeout(450);
+    await page.evaluate(() => document.querySelector("#chgRow .chgh").scrollIntoView({ block: "start" }));
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: join(SHOTS, `w${w}-2b-trip-charging.png`) });
+    /* and the Day 5 group — Buckeye, Quartzsite and Indio come over stamped "moms" and must show here */
+    await page.evaluate(() => {
+      const g = [...document.querySelectorAll("#chgRow .chgl .chgg")].find(e => /DAY 5/i.test(e.textContent));
+      if (g) g.scrollIntoView({ block: "start" });
+    });
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: join(SHOTS, `w${w}-2c-charging-day5.png`) });
+    await page.evaluate(() => { document.getElementById("scroll").scrollTop = 0;
+      if (document.getElementById("chgRow").classList.contains("open")) document.querySelector("#chgRow .chgh").click(); });
     await page.locator("#nav-pack").click();
     await page.waitForSelector("#page-pack.active");
     await page.waitForTimeout(400);

@@ -32,7 +32,7 @@
       "strobert": "2026-09-06T17:49",
       "amarillo": "2026-09-07T19:30",
       "holbrook": "2026-09-08T16:30",
-      "moms": "2026-09-10T23:48"
+      "moms": "2026-09-11T06:26"
     },
     "arrivedAtV1": true,
     "rolledV1": true,
@@ -44,7 +44,8 @@
     "day3WinslowV1": true,
     "day3HolbrookV1": true,
     "day5CoalingaV1": true,
-    "day3ArrivedV1": true
+    "day3ArrivedV1": true,
+    "day1ArrivedFixV1": true
   },
   "meta": {
     "touched": {
@@ -66,11 +67,13 @@
       "trip.day3HolbrookV1": 0,
       "trip.day5CoalingaV1": 0,
       "trip.day3ArrivedV1": 0,
+      "trip.day1ArrivedFixV1": 0,
       "spend.hotel5BookedV1": 0,
       "spend.day1PetV1": 0,
       "spend.day1HotelV1": 0,
       "spend.day3HotelV1": 0,
       "spend.day2HotelV1": 0,
+      "spend.seedH3RetireV1": 0,
       "spend.entries.seed-p2": 0,
       "spend.entries.seed-p3": 0,
       "spend.entries.seed-p5": 0,
@@ -105,6 +108,8 @@
       "spend.entries.chg-025": 0,
       "spend.entries.chg-026": 0,
       "spend.entries.chg-027": 0,
+      "spend.entries.chg-028": 0,
+      "spend.entries.chg-029": 0,
       "spend.entries.exp-001": 0,
       "spend.entries.exp-002": 0,
       "spend.entries.exp-003": 0,
@@ -115,16 +120,16 @@
       "spend.entries.exp-006": 0,
       "spend.entries.exp-009": 0,
       "spend.entries.pl-001": 0,
-      "disp.g-bag": 1789084082738,
-      "disp.r-skates": 1789084082838,
-      "disp.g-launch": 1789084082971,
-      "disp.wo-kb": 1789084083104,
-      "removed.w-printer": 1789084083288,
-      "packed.g-bag": 1789084083805,
-      "packed.r-skates": 1789084083888,
-      "trip.arrived.moms": 1789084085337,
-      "trip.arrivedAt.moms": 1789084085337,
-      "spend.budget": 1789084085905
+      "disp.g-bag": 1789108014779,
+      "disp.r-skates": 1789108014894,
+      "disp.g-launch": 1789108015045,
+      "disp.wo-kb": 1789108015177,
+      "removed.w-printer": 1789108015361,
+      "packed.g-bag": 1789108015896,
+      "packed.r-skates": 1789108015977,
+      "trip.arrived.moms": 1789108017943,
+      "trip.arrivedAt.moms": 1789108017943,
+      "spend.budget": 1789108018477
     },
     "stamped": true
   },
@@ -137,7 +142,7 @@
         "note": "Pet fee · Home2 Suites",
         "day": 2,
         "stopId": "amarillo",
-        "ts": 1789084082440,
+        "ts": 1789108014492,
         "planned": true,
         "billsLater": false
       },
@@ -148,7 +153,7 @@
         "note": "Pet fee · Holbrook",
         "day": 3,
         "stopId": "holbrook",
-        "ts": 1789084082440,
+        "ts": 1789108014492,
         "planned": true,
         "billsLater": false
       },
@@ -159,7 +164,7 @@
         "note": "Pet fee · Harris Ranch",
         "day": 5,
         "stopId": "coalinga",
-        "ts": 1789084082440,
+        "ts": 1789108014492,
         "planned": true,
         "billsLater": false
       },
@@ -170,7 +175,7 @@
         "note": "Illinois Tollway (I-PASS)",
         "day": 1,
         "stopId": "strobert",
-        "ts": 1789084082440,
+        "ts": 1789108014492,
         "planned": true,
         "billsLater": true
       },
@@ -181,7 +186,7 @@
         "note": "Oklahoma turnpikes (Will Rogers + Turner)",
         "day": 2,
         "stopId": "amarillo",
-        "ts": 1789084082440,
+        "ts": 1789108014492,
         "planned": true,
         "billsLater": true
       },
@@ -192,7 +197,7 @@
         "note": "Ship Sticks · 3 pieces",
         "day": 0,
         "stopId": null,
-        "ts": 1789084082440,
+        "ts": 1789108014492,
         "planned": true,
         "billsLater": false
       },
@@ -521,6 +526,30 @@
         "kwh": 37.39
       },
       {
+        "id": "chg-028",
+        "amount": 12.61,
+        "cat": "charging",
+        "note": "Tejon Ranch, CA",
+        "day": 5,
+        "stopId": "coalinga",
+        "ts": 1789054560000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 28.67
+      },
+      {
+        "id": "chg-029",
+        "amount": 9.11,
+        "cat": "charging",
+        "note": "Tesla Oasis · Lost Hills, CA",
+        "day": 5,
+        "stopId": "coalinga",
+        "ts": 1789058940000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 20.72
+      },
+      {
         "id": "exp-001",
         "amount": 10.65,
         "cat": "groceries",
@@ -636,6 +665,7 @@
     "day1HotelV1": true,
     "day3HotelV1": true,
     "day2HotelV1": true,
+    "seedH3RetireV1": true,
     "seededV1": true,
     "nowDay": 4,
     "openDay": 4,
