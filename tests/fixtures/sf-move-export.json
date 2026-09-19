@@ -22,7 +22,9 @@
       "strobert": true,
       "amarillo": true,
       "holbrook": true,
-      "moms": true
+      "moms": true,
+      "coalinga": true,
+      "sf": true
     },
     "tracking": false,
     "rolled": {
@@ -32,7 +34,7 @@
       "strobert": "2026-09-06T17:49",
       "amarillo": "2026-09-07T19:30",
       "holbrook": "2026-09-08T16:30",
-      "moms": "2026-09-11T06:26"
+      "sf": "2026-09-11T09:11"
     },
     "arrivedAtV1": true,
     "rolledV1": true,
@@ -45,17 +47,22 @@
     "day3HolbrookV1": true,
     "day5CoalingaV1": true,
     "day3ArrivedV1": true,
-    "day1ArrivedFixV1": true
+    "day1ArrivedFixV1": true,
+    "sfArrivedV1": true
   },
   "meta": {
     "touched": {
       "trip.arrived.strobert": 0,
       "trip.arrived.amarillo": 0,
       "trip.arrived.holbrook": 0,
+      "trip.arrived.moms": 0,
+      "trip.arrived.coalinga": 0,
+      "trip.arrived.sf": 0,
       "trip.rolled.strobert": 0,
       "trip.arrivedAt.strobert": 0,
       "trip.arrivedAt.amarillo": 0,
       "trip.arrivedAt.holbrook": 0,
+      "trip.arrivedAt.sf": 0,
       "trip.arrivedAtV1": 0,
       "trip.rolledV1": 0,
       "trip.day2ArrivedV1": 0,
@@ -68,12 +75,14 @@
       "trip.day5CoalingaV1": 0,
       "trip.day3ArrivedV1": 0,
       "trip.day1ArrivedFixV1": 0,
+      "trip.sfArrivedV1": 0,
       "spend.hotel5BookedV1": 0,
       "spend.day1PetV1": 0,
       "spend.day1HotelV1": 0,
       "spend.day3HotelV1": 0,
       "spend.day2HotelV1": 0,
       "spend.seedH3RetireV1": 0,
+      "spend.pl002CostFixV1": 0,
       "spend.entries.seed-p2": 0,
       "spend.entries.seed-p3": 0,
       "spend.entries.seed-p5": 0,
@@ -110,6 +119,9 @@
       "spend.entries.chg-027": 0,
       "spend.entries.chg-028": 0,
       "spend.entries.chg-029": 0,
+      "spend.entries.chg-030": 0,
+      "spend.entries.chg-031": 0,
+      "spend.entries.chg-032": 0,
       "spend.entries.exp-001": 0,
       "spend.entries.exp-002": 0,
       "spend.entries.exp-003": 0,
@@ -120,16 +132,15 @@
       "spend.entries.exp-006": 0,
       "spend.entries.exp-009": 0,
       "spend.entries.pl-001": 0,
-      "disp.g-bag": 1789108014779,
-      "disp.r-skates": 1789108014894,
-      "disp.g-launch": 1789108015045,
-      "disp.wo-kb": 1789108015177,
-      "removed.w-printer": 1789108015361,
-      "packed.g-bag": 1789108015896,
-      "packed.r-skates": 1789108015977,
-      "trip.arrived.moms": 1789108017943,
-      "trip.arrivedAt.moms": 1789108017943,
-      "spend.budget": 1789108018477
+      "spend.entries.pl-002": 0,
+      "disp.g-bag": 1789809118970,
+      "disp.r-skates": 1789809119053,
+      "disp.g-launch": 1789809119153,
+      "disp.wo-kb": 1789809119252,
+      "removed.w-printer": 1789809119353,
+      "packed.g-bag": 1789809120354,
+      "packed.r-skates": 1789809120420,
+      "spend.budget": 1789809121936
     },
     "stamped": true
   },
@@ -142,7 +153,7 @@
         "note": "Pet fee · Home2 Suites",
         "day": 2,
         "stopId": "amarillo",
-        "ts": 1789108014492,
+        "ts": 1789809118778,
         "planned": true,
         "billsLater": false
       },
@@ -153,7 +164,7 @@
         "note": "Pet fee · Holbrook",
         "day": 3,
         "stopId": "holbrook",
-        "ts": 1789108014492,
+        "ts": 1789809118778,
         "planned": true,
         "billsLater": false
       },
@@ -164,7 +175,7 @@
         "note": "Pet fee · Harris Ranch",
         "day": 5,
         "stopId": "coalinga",
-        "ts": 1789108014492,
+        "ts": 1789809118778,
         "planned": true,
         "billsLater": false
       },
@@ -175,7 +186,7 @@
         "note": "Illinois Tollway (I-PASS)",
         "day": 1,
         "stopId": "strobert",
-        "ts": 1789108014492,
+        "ts": 1789809118778,
         "planned": true,
         "billsLater": true
       },
@@ -186,7 +197,7 @@
         "note": "Oklahoma turnpikes (Will Rogers + Turner)",
         "day": 2,
         "stopId": "amarillo",
-        "ts": 1789108014492,
+        "ts": 1789809118778,
         "planned": true,
         "billsLater": true
       },
@@ -197,7 +208,7 @@
         "note": "Ship Sticks · 3 pieces",
         "day": 0,
         "stopId": null,
-        "ts": 1789108014492,
+        "ts": 1789809118778,
         "planned": true,
         "billsLater": false
       },
@@ -550,6 +561,42 @@
         "kwh": 20.72
       },
       {
+        "id": "chg-030",
+        "amount": 8.66,
+        "cat": "charging",
+        "note": "Harris Ranch, CA",
+        "day": 5,
+        "stopId": "coalinga",
+        "ts": 1789064280000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 19.68
+      },
+      {
+        "id": "chg-031",
+        "amount": 8.66,
+        "cat": "charging",
+        "note": "Harris Ranch, CA",
+        "day": 5,
+        "stopId": "coalinga",
+        "ts": 1789074120000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 19.68
+      },
+      {
+        "id": "chg-032",
+        "amount": 14.67,
+        "cat": "charging",
+        "note": "Pleasanton, CA",
+        "day": 6,
+        "stopId": "sf",
+        "ts": 1789112280000,
+        "planned": false,
+        "billsLater": false,
+        "kwh": 30.5787
+      },
+      {
         "id": "exp-001",
         "amount": 10.65,
         "cat": "groceries",
@@ -658,6 +705,17 @@
         "ts": 1788800100000,
         "planned": false,
         "billsLater": false
+      },
+      {
+        "id": "pl-002",
+        "amount": 156.44,
+        "cat": "food",
+        "note": "Prime Steakhouse at Harris Ranch · Steakhouse",
+        "day": 5,
+        "stopId": "coalinga",
+        "ts": 1789073040000,
+        "planned": false,
+        "billsLater": false
       }
     ],
     "hotel5BookedV1": true,
@@ -666,9 +724,10 @@
     "day3HotelV1": true,
     "day2HotelV1": true,
     "seedH3RetireV1": true,
+    "pl002CostFixV1": true,
     "seededV1": true,
-    "nowDay": 4,
-    "openDay": 4,
+    "nowDay": 6,
+    "openDay": 6,
     "budget": 1500
   },
   "stats": {},

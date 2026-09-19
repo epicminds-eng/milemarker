@@ -5,6 +5,7 @@ import { chromium } from "playwright";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { mkdirSync, existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const APP = pathToFileURL(join(ROOT, "index.html")).href;
@@ -17,6 +18,11 @@ const launchChromium = async () => {
   try { return await chromium.launch(); }
   catch (e) { if (!existsSync(PW_FALLBACK)) throw e; return chromium.launch({ executablePath: PW_FALLBACK }); }
 };
+
+/* Port #13: verify shots are written only with SHOTS=1. A routine `npm test` writes nothing
+   outside shots/ — which is gitignored — and the run ends by proving the tree is still clean. */
+const SHOTS_ON = !!process.env.SHOTS;
+let shotCount = 0;
 
 let pass = 0, fail = 0;
 const ok = (name, cond, detail = "") => {
@@ -113,8 +119,21 @@ const seed = () => ({
   meta: { touched: {}, stamped: true }
 });
 
+const gitState = () => {
+  try {
+    return execFileSync("git", ["status", "--porcelain"], { cwd: ROOT, encoding: "utf8" })
+      .split("\n").filter(l => l.trim() && !/(^|\/)shots\//.test(l)).sort().join("\n");
+  } catch (e) { return null; }   /* not a checkout — skip the check rather than fail it */
+};
+
 const run = async () => {
-  mkdirSync(SHOTS, { recursive: true });
+  const gitBefore = gitState();
+  if (SHOTS_ON) mkdirSync(SHOTS, { recursive: true });
+  const shot = async (page, name, opts) => {
+    if (!SHOTS_ON) return;
+    await page.screenshot({ path: join(SHOTS, name), ...(opts || {}) });
+    shotCount++;
+  };
   const browser = await launchChromium();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA,
     deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -142,7 +161,7 @@ const run = async () => {
   ok("+ New trip button present", await page.locator("#newTripBtn").isVisible());
   eq("no trip cards", await page.locator(".trcard").count(), 0);
   ok("no console errors on empty load", errors.length === 0, errors.join(" | "));
-  await page.screenshot({ path: join(SHOTS, "01-trips-empty.png") });
+  await shot(page, "01-trips-empty.png");
 
   /* ---- (b) fixture trip injected, reloaded, opened ---- */
   console.log("\n(b) fixture trip");
@@ -181,7 +200,7 @@ const run = async () => {
   await page.locator("#nav-trip").click();
   await page.waitForSelector("#page-trip.active");
   await page.waitForTimeout(500);   /* let the tab's springIn animation settle before the screenshot */
-  await page.screenshot({ path: join(SHOTS, "02-trip-tab.png"), fullPage: false });
+  await shot(page, "02-trip-tab.png", { fullPage: false });
 
   /* ---- (d) reload keeps activeTripId ---- */
   console.log("\n(d) activeTripId survives a reload");
@@ -212,7 +231,7 @@ const run = async () => {
   ok("Planning trip second", second.includes("Planning Run") && second.includes("Planning"), second.replace(/\n/g, " | "));
   ok("Live card one-line stat", /550 mi · 2 days · \$11/.test(first.replace(/\n/g, " ")), first.replace(/\n/g, " | "));
   ok("no console errors creating a trip", errors.length === 0, errors.join(" | "));
-  await page.screenshot({ path: join(SHOTS, "03-trips-two.png") });
+  await shot(page, "03-trips-two.png");
 
   /* ---- (e) a trip with no stops and no data still renders every tab cleanly ---- */
   console.log("\n(e) zero-state trip (no stops, no data)");
@@ -236,7 +255,7 @@ const run = async () => {
   ok("no console errors on the zero-state trip", errors.length === 0, errors.join(" | "));
   await page.locator("#nav-trip").click();
   await page.waitForTimeout(500);
-  await page.screenshot({ path: join(SHOTS, "04-trip-zero-state.png") });
+  await shot(page, "04-trip-zero-state.png");
 
   /* ---- (f) fresh install: the SF trip is seeded from IMPORT_SF and opened ---- */
   console.log("\n(f) fresh install seeds the SF trip");
@@ -251,7 +270,7 @@ const run = async () => {
     total: RT.TOTAL, seedTotal: IMPORT_SF().stops.reduce((a, s) => a + (+s.mi || 0), 0),
     days: RT.DAYS, stops: RT.stops.length, wp: RT.WP.length,
     charges: T().charges.length, real: realCharges().length, planned: T().charges.filter(c => c.planned).length,
-    seedReal: IMPORT_SF().charges.filter(c => !c.planned).length,
+    seedReal: IMPORT_SF().charges.filter(c => !c.planned && !c.retired).length,
     ids: T().stops.map(s => s.id).join(","),
     tz: T().stops.map(s => s.tz).join(","),
     pct: routePos() / RT.TOTAL * 100, pos: routePos(),
@@ -263,7 +282,7 @@ const run = async () => {
         if (l && l.miles > bm && l.miles <= RT.TOTAL) { bm = l.miles; best = c; } });
       return best ? best.id + "|" + best.name : "none"; })()
   }));
-  eq("seed revision recorded", sf.rev, "sf-move v110 b2739ec");
+  eq("seed revision recorded", sf.rev, "sf-move v116 c04cb6c");
   eq("trip carries the seed revision", sf.seedRev, sf.rev);
   eq("TOTAL == the sum of IMPORT_SF's legs", sf.total, sf.seedTotal);
   eq("6 days", sf.days, 6);
@@ -272,17 +291,62 @@ const run = async () => {
     "America/Chicago,America/Chicago,America/Chicago,America/Phoenix,America/Phoenix,America/Los_Angeles,America/Los_Angeles");
   eq("WAYPTS rebuilt as per-leg routes", sf.wp, 23);
   eq("charges = IMPORT_SF's sessions", sf.real, sf.seedReal);
-  eq("29 logged sessions", sf.real, 29);
   eq("nothing planned any more — v109 fulfilled the Oasis", sf.planned, 0);
+  /* Port #12 — structural session count. Ids are never renumbered, so the live sessions must equal
+     the highest chg id minus the retired ones, and any gap in the sequence has to be explained by a
+     retired row. No literal count anywhere: the shape of the data proves itself. */
+  const seq = await page.evaluate(() => {
+    const all = T().charges.filter(c => /^chg-\d+$/.test(c.id));
+    const num = c => +c.id.slice(4);
+    const high = Math.max(...all.map(num));
+    const present = new Set(all.map(num));
+    const retired = all.filter(c => c.retired).map(num);
+    const missing = [];
+    for (let i = 1; i <= high; i++) if (!present.has(i)) missing.push(i);
+    return { high, retired, missing,
+      live: all.filter(c => !c.retired && !c.planned).length,
+      planned: all.filter(c => c.planned).length };
+  });
+  eq("no unexplained gap in the charge sequence", seq.missing.join(","), "");
+  eq("live sessions == highest id − retired − planned",
+    seq.live, seq.high - seq.retired.length - seq.planned);
+  eq("charging row agrees with the sequence", sf.real, seq.live);
   eq("meta.sfSeededV1 flagged", sf.seeded, true);
   const sfProg = await page.locator("#tripProg").innerText();
   ok(`progress strip shows ${sf.total.toLocaleString()} mi`, sfProg.includes(sf.total.toLocaleString()), sfProg.split("\n")[1]);
-  eq("furthest logged charger is chg-029", sf.furthest.split("|")[0], "chg-029");
-  ok("chg-029 is Tesla Oasis, Lost Hills", /Tesla Oasis/.test(sf.furthest) && /Lost Hills/.test(sf.furthest), sf.furthest);
+  eq("furthest logged charger is the last of the trip", sf.furthest.split("|")[0], "chg-0" + seq.high);
+  ok("the last session is Pleasanton", /Pleasanton/.test(sf.furthest), sf.furthest);
+
+  /* the trip is complete: one arrival on the final stop, everything else derived */
+  const done = await page.evaluate(() => {
+    const t = T(), st = t.stops.filter(s => !s.retired);
+    return { arrived: st.filter(s => t.log.arrived[s.id]).length, stops: st.length,
+      sfStamp: t.log.arrivedAt.sf, status: tripStatus(t),
+      pos: routePos(), total: RT.TOTAL,
+      todayDay: todayDay(), todayDone: dayProg(todayDay()).done,
+      d2dDay6: (dayStats(RT.DAYS) || {}).d2d };
+  });
+  eq("every stop arrived", `${done.arrived}/${done.stops}`, `${done.stops}/${done.stops}`);
+  eq("the SF stamp is the seed's", done.sfStamp, "2026-09-11T09:11");
+  eq("status derives to done", done.status, "done");
+  eq("the strip is at the end", Math.round(done.pos), done.total);
+  const stripText = await page.locator("#tripProg").innerText();
+  ok("progress shows 100%", /100%/.test(stripText), stripText.split("\n").slice(0, 3).join(" | "));
+  ok("nothing left to go", /\b0\b/.test((await page.locator("#tripProg .tptiles > div").first().innerText())),
+    await page.locator("#tripProg .tptiles > div").first().innerText());
+  ok("the last label reads arrived", /arrived/.test(stripText), stripText.replace(/\n/g, " | "));
+  /* Day 6 door-to-door needs a roll, and the seed never invents one */
+  eq("Day 6 door-to-door is unknown on a fresh install", done.d2dDay6 == null, true);
+  /* Port #15 — the today card drops "of N mi" once that day is arrived. Read the app's own dayProg. */
+  const statLine = await page.locator("#tripStat").innerText();
+  if (done.todayDone) {
+    ok("today arrived → 'N miles', no 'of N mi'", / miles/.test(statLine) && !/ of .* mi/.test(statLine), statLine);
+  } else {
+    ok("today not arrived → 'N of N mi'", / of .* mi/.test(statLine), statLine);
+  }
   const dots = await page.evaluate(() => [...document.querySelectorAll("#tripProg .tps")].map(d => d.className));
   eq("7 stop dots", dots.length, 7);
-  ok("Mom's passed", dots[4].includes("on"), dots.join(" | "));
-  ok("SF not yet reached", dots[6].includes("up"), dots.join(" | "));
+  ok("every dot is passed on a finished trip", dots.every(d => d.includes("on")), dots.join(" | "));
   const sfChg = await page.locator("#chgRow .chgh").innerText();
   ok(`charging row: ${sf.real} stops, nothing planned`,
     new RegExp(`${sf.real}\\s+stops`).test(sfChg) && !/planned/.test(sfChg), sfChg.replace(/\n/g, " | "));
@@ -305,23 +369,43 @@ const run = async () => {
   await page.locator("#nav-back").click();
   await page.waitForSelector("#page-trips.active");
   const sfCard = (await page.locator(".trcard").first().innerText()).replace(/\n/g, " · ");
-  ok(`Trips card: Live · Sept 6 – … · ${sf.total.toLocaleString()} mi · 6 days`,
-    /Live/.test(sfCard) && /Sept 6 – …/.test(sfCard) &&
+  ok(`Trips card: Done · Sept 6 – … · ${sf.total.toLocaleString()} mi · 6 days`,
+    /Done/.test(sfCard) && /Sept 6 – …/.test(sfCard) &&
     new RegExp(`${sf.total.toLocaleString()} mi · 6 days · \\$`).test(sfCard), sfCard);
   ok("no console errors on the seeded SF trip", errors.length === 0, errors.join(" | "));
-  await page.screenshot({ path: join(SHOTS, "05-trips-sf.png") });
+  await shot(page, "05-trips-sf.png");
   await page.locator(".trcard").first().click();
   await page.waitForSelector("#page-trip.active");
   await page.waitForTimeout(500);
-  await page.screenshot({ path: join(SHOTS, "06-sf-trip-tab.png") });
+  await shot(page, "06-sf-trip-tab.png");
 
   /* ---- (g) paste an sf-move export through the Import UI ---- */
   console.log("\n(g) sf-move import");
   errors.length = 0;
   const sfExport = readFileSync(SF_EXPORT, "utf8");
   const fixture = JSON.parse(sfExport);
+  const INJ_SWEPT = ["inj-h3", "inj-p3"];            /* planned, on a day with an actual of the same kind */
+  const INJ_SURVIVORS = ["inj-keep", "inj-p3-paid"]; /* actuals — the sweep never touches them */
+  /* planting a real Day 3 pet fee also retires the fixture's own planned one; work out which of the
+     fixture's rows the sweep is entitled to take rather than guessing at a total */
+  const INJ_ACTUALS = [["hotel", 3], ["kane", 3]];
+  const fixtureSwept = fixture.spend.entries.filter(e =>
+    e.planned && INJ_ACTUALS.some(([cat, day]) => e.cat === cat && e.day === day)).map(e => e.id);
   await page.locator("#nav-back").click();
   await page.waitForSelector("#page-trips.active");
+  /* three rows planted before the paste so dropStalePlanned has something of ours to sweep:
+     two planned Day 3 rows (Day 3 has a real hotel, exp-007) and one confirmed by hand, which stays */
+  await page.evaluate(() => {
+    const t = state.trips["sf-2026"];
+    t.spend.entries.push(
+      { id: "inj-h3", amount: 150, cat: "hotel", note: "Hotel · Holbrook (TBD)", day: 3, stopId: "holbrook", ts: 1, planned: true, billsLater: false },
+      { id: "inj-p3", amount: 50, cat: "kane", note: "Pet fee · Holbrook (TBD)", day: 3, stopId: "holbrook", ts: 1, planned: true, billsLater: false },
+      { id: "inj-keep", amount: 231.21, cat: "hotel", note: "Arizonian, confirmed by hand", day: 3, stopId: "holbrook", ts: 1, planned: false, auto: false, billsLater: false },
+      /* Day 3 has a real hotel (exp-007) but no real pet fee, so plant one — otherwise the pet-fee
+         branch of the sweep has nothing to sweep against and would never be exercised */
+      { id: "inj-p3-paid", amount: 50, cat: "kane", note: "Pet fee · Holbrook, paid", day: 3, stopId: "holbrook", ts: 1, planned: false, auto: false, billsLater: false });
+    save(state);
+  });
   await page.locator("#dataPaste").fill(sfExport);
   dialogs.length = 0;
   await page.locator("#dataImport").click();
@@ -340,12 +424,23 @@ const run = async () => {
       budget: t.spend.budget, rows: t.spend.entries.length,
       onlyTrip: Object.keys(state.trips).join(",") };
   });
-  eq("arrived stamps from the paste", merged.arrived, fxArrived.slice().sort().join(","));
+  /* the paste stamps the final stop; every earlier stop follows, including "start", which sf-move
+     never flags because it has no card to tap */
+  eq("arrived stamps from the paste, plus the ones the rule fills",
+    merged.arrived, [...new Set(fxArrived.concat(["start"]))].sort().join(","));
   eq("rolled strobert 08:30", merged.rolled, "2026-09-06T08:30");
   eq("departDate from the paste", merged.departDate, "2026-09-06");
   eq("2 packed", merged.packed, "g-bag,r-skates");
   eq("budget 1500", merged.budget, 1500);
-  eq("spend rows = fixture entries", merged.rows, fixture.spend.entries.length);
+  /* a charge the seed retires takes its pasted row with it too — ask the app which ids those are
+     rather than assuming the shipped data has none */
+  const retiredIds = await page.evaluate(() => IMPORT_SF().charges.filter(c => c.retired).map(c => c.id));
+  const fixtureRetired = fixture.spend.entries.filter(e => retiredIds.includes(e.id)).map(e => e.id);
+  eq("spend rows = fixture entries + planted survivors − what the sweeps take",
+    merged.rows,
+    fixture.spend.entries.length + INJ_SURVIVORS.length - fixtureSwept.length - fixtureRetired.length);
+  ok("planting a real Day 3 pet fee retired the fixture's planned one",
+    fixtureSwept.includes("seed-p3"), fixtureSwept.join(",") || "(nothing swept)");
   eq("merged onto sf-2026 only", merged.onlyTrip, "sf-2026");
 
   /* the day decides the stop: sf-move stamps Buckeye/Quartzsite/Indio with nearestStop() → "moms",
@@ -368,6 +463,19 @@ const run = async () => {
   ok("the ones sf-move mis-stamped keep srcStopId moms", moved.length >= 3,
     `${moved.length} rows carry srcStopId "moms": ${JSON.stringify(day5.rows)}`);
 
+  /* the finished trip came over whole */
+  const fin = await page.evaluate(() => {
+    const t = state.trips["sf-2026"];
+    return { sf: t.log.arrivedAt.sf, rolledSf: t.log.rolled.sf || null };
+  });
+  eq("arrivedAt.sf equals the paste's", fin.sf, fixture.trip.arrivedAt.sf);
+  const d2d6 = await page.evaluate(() => {
+    const st = state.trips["sf-2026"];
+    return { rolled: st.log.rolled.sf || null, at: st.log.arrivedAt.sf || null };
+  });
+  ok("Day 6 door-to-door has both ends after the paste, or neither",
+    (!!d2d6.rolled) === (!!fixture.trip.rolled.sf), JSON.stringify(d2d6));
+
   /* the sf-move migration fixed the Day 1 arrival date; Mile Marker copies stamps verbatim */
   eq("Day 1 arrival lands on Sept 6",
     (await page.evaluate(() => state.trips["sf-2026"].log.arrivedAt.strobert || "")).slice(0, 10), "2026-09-06");
@@ -380,9 +488,13 @@ const run = async () => {
       e.forEach(x => { if (x.planned && x.cat === cat && actualDays.has(x.day)) bad.push(cat + " day " + x.day + " " + x.id); });
     });
     return { bad, hotelActualDays: [...new Set(e.filter(x => !x.planned && x.cat === "hotel").map(x => x.day))].sort(),
-      plannedKane: e.filter(x => x.planned && x.cat === "kane").map(x => x.id + "@" + x.day) };
+      plannedKane: e.filter(x => x.planned && x.cat === "kane").map(x => x.id + "@" + x.day),
+      injected: e.filter(x => ["inj-h3", "inj-p3"].includes(x.id)).map(x => x.id),
+      keptConfirmed: ["inj-keep", "inj-p3-paid"].every(id => e.some(x => x.id === id && x.planned === false)) };
   });
   ok("actual hotel rows exist to sweep against", stale.hotelActualDays.length >= 3, JSON.stringify(stale.hotelActualDays));
+  eq("the injected Day 3 planned rows are gone", stale.injected.join(","), "");
+  ok("the hand-confirmed Day 3 rows survive", stale.keptConfirmed, "a planted actual went missing");
   eq("no planned row survives on a day that has an actual of the same kind", stale.bad.join(","), "");
   ok("a pet fee with no actual is left alone", stale.plannedKane.length > 0, JSON.stringify(stale.plannedKane));
 
@@ -456,6 +568,7 @@ const run = async () => {
       dupIds: t.charges.length - new Set(t.charges.map(c => c.id)).size,
       localCharge: t.charges.some(c => c.id === "chg-local"),
       oasis: t.charges.some(c => c.id === "chg-oasis"),
+      seedCharges: IMPORT_SF().charges.length,
       p2: t.spend.entries.find(e => e.id === "seed-p2"),
       p3: t.spend.entries.find(e => e.id === "seed-p3"),
       strip: [...document.querySelectorAll("#tripProg .tps")].length,
@@ -463,7 +576,7 @@ const run = async () => {
       nodes: document.querySelectorAll("#nodeG circle.nd").length
     };
   });
-  eq("seedRev brought forward", ref.seedRev, "sf-move v110 b2739ec");
+  eq("seedRev brought forward", ref.seedRev, "sf-move v116 c04cb6c");
   eq("abq + la retired", ref.retired, "abq,la");
   ok("retired stops are kept in the data", /abq/.test(ref.kept) && /la/.test(ref.kept), ref.kept);
   eq("route skips the retired stops", ref.route, "start,strobert,amarillo,holbrook,moms,coalinga,sf");
@@ -471,7 +584,7 @@ const run = async () => {
   eq("progress strip has 7 dots", ref.strip, 7);
   eq("map draws 7 stop nodes", ref.nodes, 7);
   ok("abq's Arrived stamp survives", ref.abqStamp, JSON.stringify(ref.abqStamp));
-  eq("29 seeded + 1 locally logged charge", ref.charges, 29 + 1);
+  eq("every seeded session plus the locally logged one", ref.charges, ref.seedCharges + 1);
   eq("no duplicate charge ids", ref.dupIds, 0);
   ok("a locally logged charge is kept", ref.localCharge);
   ok("the fulfilled planned charger is gone", !ref.oasis, "chg-oasis survived the refresh");
@@ -542,35 +655,153 @@ const run = async () => {
     await page.locator("#nav-back").click();
     await page.waitForSelector("#page-trips.active");
     await page.waitForTimeout(300);
-    await page.screenshot({ path: join(SHOTS, `w${w}-1-trips.png`) });
+    await shot(page, `w${w}-1-trips.png`);
     await page.locator(".trcard").first().click();
     await page.waitForSelector("#page-trip.active");
     await page.waitForTimeout(600);
-    await page.screenshot({ path: join(SHOTS, `w${w}-2-trip.png`) });
+    await shot(page, `w${w}-2-trip.png`);
     /* charging row open: the sessions are grouped by the stop that closes their day.
        The app scrolls inside #scroll, so fullPage would only ever capture one viewport. */
     await page.evaluate(() => { if (!document.getElementById("chgRow").classList.contains("open")) document.querySelector("#chgRow .chgh").click(); });
     await page.waitForTimeout(450);
     await page.evaluate(() => document.querySelector("#chgRow .chgh").scrollIntoView({ block: "start" }));
     await page.waitForTimeout(250);
-    await page.screenshot({ path: join(SHOTS, `w${w}-2b-trip-charging.png`) });
+    await shot(page, `w${w}-2b-trip-charging.png`);
     /* and the Day 5 group — Buckeye, Quartzsite and Indio come over stamped "moms" and must show here */
     await page.evaluate(() => {
       const g = [...document.querySelectorAll("#chgRow .chgl .chgg")].find(e => /DAY 5/i.test(e.textContent));
       if (g) g.scrollIntoView({ block: "start" });
     });
     await page.waitForTimeout(250);
-    await page.screenshot({ path: join(SHOTS, `w${w}-2c-charging-day5.png`) });
+    await shot(page, `w${w}-2c-charging-day5.png`);
     await page.evaluate(() => { document.getElementById("scroll").scrollTop = 0;
       if (document.getElementById("chgRow").classList.contains("open")) document.querySelector("#chgRow .chgh").click(); });
     await page.locator("#nav-pack").click();
     await page.waitForSelector("#page-pack.active");
     await page.waitForTimeout(400);
-    await page.screenshot({ path: join(SHOTS, `w${w}-3-pack.png`) });
+    await shot(page, `w${w}-3-pack.png`);
   }
   ok("no console errors at either width", errors.length === 0, errors.join(" | "));
 
+  /* ---- (k) retired charges ---- */
+  console.log("\n(k) a retired charge keeps its id and leaves everything else");
+  errors.length = 0;
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  const before = await page.evaluate(() => {
+    const t = T();
+    return { charges: t.charges.length, live: realCharges().length,
+      rows: t.spend.entries.filter(e => e.cat === "charging").length,
+      nodes: document.querySelectorAll("#nodeG .chg").length };
+  });
+  /* pick a session the seed has not already retired, so the deltas below are always real */
+  const victim = await page.evaluate(() => {
+    const live = T().charges.filter(c => !c.retired && !c.planned && /^chg-\d+$/.test(c.id));
+    return live[live.length - 1].id;
+  });
+  await page.evaluate(id => {
+    T().charges.filter(c => c.id === id)[0].retired = true;
+    save(state); renderAll();
+  }, victim);
+  await page.waitForTimeout(200);
+  const afterRetire = await page.evaluate(id => {
+    const t = T();
+    return { stillThere: t.charges.some(c => c.id === id), charges: t.charges.length,
+      live: realCharges().length, inChargesOf: chargesOf().some(c => c.id === id),
+      row: t.spend.entries.some(e => e.id === id),
+      rows: t.spend.entries.filter(e => e.cat === "charging").length,
+      nodes: document.querySelectorAll("#nodeG .chg").length,
+      inDayStats: (dayStats(5) || { ch: [] }).ch.some(c => c.id === id),
+      header: document.querySelector("#chgRow .chgh").innerText };
+  }, victim);
+  ok("the retired charge is still in trip.charges", afterRetire.stillThere);
+  eq("nothing was renumbered or deleted", afterRetire.charges, before.charges);
+  ok("it is out of chargesOf()", !afterRetire.inChargesOf);
+  eq("one fewer live session", afterRetire.live, before.live - 1);
+  ok("its Spend row is gone", !afterRetire.row);
+  eq("one fewer charging row", afterRetire.rows, before.rows - 1);
+  eq("one fewer map node", afterRetire.nodes, before.nodes - 1);
+  ok("it is out of the day's stats", !afterRetire.inDayStats);
+  ok("the charging row header counts the live ones",
+    new RegExp(`${afterRetire.live}\\s+stops`).test(afterRetire.header), afterRetire.header);
+  /* a row the user confirmed by hand is theirs, not the seeder's */
+  await page.evaluate(id => {
+    const t = T();
+    t.charges.filter(c => c.id === id)[0].retired = false;
+    save(state); renderAll();
+  }, victim);
+  await page.waitForTimeout(150);
+  await page.evaluate(id => {
+    const t = T(), row = t.spend.entries.filter(e => e.id === id)[0];
+    row.auto = false; row.amount = 99.99;
+    t.charges.filter(c => c.id === id)[0].retired = true;
+    save(state); renderAll();
+  }, victim);
+  await page.waitForTimeout(150);
+  const kept = await page.evaluate(id => {
+    const e = T().spend.entries.filter(x => x.id === id)[0];
+    return e ? e.amount : null;
+  }, victim);
+  eq("a hand-confirmed row survives its charge being retired", kept, 99.99);
+  /* and the structural count still adds up with a retired row in the sequence */
+  const seq2 = await page.evaluate(() => {
+    const all = T().charges.filter(c => /^chg-\d+$/.test(c.id)), n = c => +c.id.slice(4);
+    return { high: Math.max(...all.map(n)), retired: all.filter(c => c.retired).length,
+      live: all.filter(c => !c.retired && !c.planned).length };
+  });
+  eq("live == highest id − retired, with a retired row explaining the gap",
+    seq2.live, seq2.high - seq2.retired);
+  ok("no console errors retiring a charge", errors.length === 0, errors.join(" | "));
+
+  /* ---- (l) an undriven day reads dashes — built in-page, never by relying on empty fixture data ---- */
+  console.log("\n(l) undriven day");
+  errors.length = 0;
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  /* Port #14: every day of the SF trip is driven now, so lift one day's sessions and stamps, assert
+     the dashes, then put them back. No test may depend on a day happening to be empty. */
+  const dashes = await page.evaluate(() => {
+    const t = T(), DAY = 4;
+    const stop = stopClosingDay(t, DAY);
+    const lifted = t.charges.filter(c => c.date && dayForDate(parseYMD(c.date)) === DAY);
+    const keptCharges = t.charges.slice();
+    const keptRolled = t.log.rolled[stop.id], keptAt = t.log.arrivedAt[stop.id], keptArr = t.log.arrived[stop.id];
+    t.charges = t.charges.filter(c => lifted.indexOf(c) < 0);
+    delete t.log.rolled[stop.id]; delete t.log.arrivedAt[stop.id]; delete t.log.arrived[stop.id];
+    buildRoute();
+    const empty = dayStats(DAY);
+    const out = { lifted: lifted.length, stop: stop.id, emptyIsNull: empty === null,
+      d2d: empty ? empty.d2d : null, sessions: empty ? empty.ch.length : 0 };
+    /* restore */
+    t.charges = keptCharges;
+    if (keptRolled) t.log.rolled[stop.id] = keptRolled;
+    if (keptAt) t.log.arrivedAt[stop.id] = keptAt;
+    if (keptArr) t.log.arrived[stop.id] = keptArr;
+    buildRoute();
+    out.restored = t.charges.length;
+    out.restoredStats = !!dayStats(DAY);
+    return out;
+  });
+  ok("the day had sessions to lift", dashes.lifted > 0, `${dashes.lifted} lifted from ${dashes.stop}`);
+  ok("with nothing driven the day has no stats at all", dashes.emptyIsNull || (dashes.d2d === null && dashes.sessions === 0),
+    JSON.stringify(dashes));
+  ok("and everything was put back", dashes.restoredStats, JSON.stringify(dashes));
+  const hm6 = await page.evaluate(() => hm(null));
+  eq("an unknown duration renders as a dash", hm6, "—");
+  ok("no console errors on the undriven-day check", errors.length === 0, errors.join(" | "));
+
   await browser.close();
+  /* Port #13: a routine run leaves the tree exactly as it found it */
+  if (!SHOTS_ON) {
+    const gitAfter = gitState();
+    if (gitBefore === null) console.log("  skip  git cleanliness (not a checkout)");
+    else eq("a run without SHOTS=1 changes nothing outside shots/", gitAfter, gitBefore);
+    eq("and takes no screenshots", shotCount, 0);
+  } else {
+    ok(`SHOTS=1 wrote ${shotCount} screenshots`, shotCount > 0);
+  }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 };

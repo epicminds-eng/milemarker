@@ -1,6 +1,6 @@
-# Mile Marker — ports from sf-move (Sep 10, 2026)
+# Mile Marker — ports from sf-move (Sep 19, 2026)
 
-Source: epicminds-eng/sf-move, main 0d8b246 (v107). Build 2.1's seed refresh takes STOPS/BACKUPS/WAYPTS/CHARGES/EXPENSES from v107. Lift the code from the named commits; never re-derive. Each item names the build that carries it.
+Source: epicminds-eng/sf-move. The seed is pinned in `IMPORT_SF.rev` — Build 2.3 takes STOPS/BACKUPS/WAYPTS/CHARGES/EXPENSES/PLACES rows from c04cb6c (v116, the finished trip). Lift the code from the named commits; never re-derive. Each item names the build that carries it.
 
 | # | Port | sf-move commit | Mile Marker build | Rule |
 |---|---|---|---|---|
@@ -15,5 +15,9 @@ Source: epicminds-eng/sf-move, main 0d8b246 (v107). Build 2.1's seed refresh tak
 | 9 | Footer = era + build: "Mile Marker 1.0 · bN · Mon D"; bN +1 every commit; era only on instruction. | pending in sf-move | 3 onward | |
 | 10 | Charger clusters merge by identical address only, never by proximity. | open in sf-move | 3 and 6 | |
 | 11 | Wide (≥768) column follows the sub-tab: Overview = route list; Daily/Charging/Places/Hotels/Itinerary = 3-number strip + one-line list; todayFigures() shared with the strip under the map; test asserts strip == section cell for cell; Itinerary rows lead with destination. Port the pattern, not SF data. | 0d8b246 (v107) | 3 | |
+| 12 | Structural session count: real (non-retired, non-planned) sessions == the last chg id minus the retired ids; gaps only where a retired row explains them. Charge ids are never renumbered. No literal count in any test. | raised Sep 19 (2.3) | 2.3 | Proved by mutation: drop a mid-sequence id → fails; retire one → passes at the lower count. |
+| 13 | Verify shots only with SHOTS=1: every screenshot in the test suite is gated on the env var, and a routine run ends by proving it changed nothing outside gitignored shots/. | 8790186 | 2.3 | Keeps design/ and the tree untouched by `npm test`. |
+| 14 | No fixture may depend on a day being empty. To test an undriven day, lift that day's sessions and stamps in-page, assert, restore. | raised Sep 19 (2.3) | 2.3 | The SF trip now has every day driven, so this is the only way the case stays covered. |
+| 15 | The today/day card: once a day has arrived it drops "of N mi" and shows "N miles". Tests read the app's own dayProg(today).done and expect the matching form, never a constant. | raised Sep 19 (2.3) | 2.3 | Mile Marker has no separate today card yet (Build 3's segmented control), so the rule lives on the stat line under the map. |
 
-Build order: 2.1 seed refresh + disp + rules · 2.2 ports #1 #5 #6 #7a · 3 outlines + auto-fit + segmented control + #2 #3 #7b #9 #10 #11 · 4–5 new-trip flow, routing · 6 charge sheet · 6.5 lifetime (#8) · 7–10 pack templates, sync adapter, PWA, polish.
+Build order: 2.1 seed refresh + disp + rules · 2.2 day-authoritative charges + stale planned rows · 2.3 seed v116, retired charges, complete-trip rule, ports #12–#15 · 2.4 ports #1 #5 #6 #7a · 3 outlines + auto-fit + segmented control + #2 #3 #7b #9 #10 #11 · 4–5 new-trip flow, routing · 6 charge sheet · 6.5 lifetime (#8) · 7–10 pack templates, sync adapter, PWA, polish.

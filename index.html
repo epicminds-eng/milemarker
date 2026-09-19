@@ -609,7 +609,7 @@
     </div>
   </div>
 
-  <div class="appver" id="appVer">Mile Marker v4 · build 2026-09-11 · 46d06fa</div>
+  <div class="appver" id="appVer">Mile Marker v5 · build 2026-09-19 · 622e75e</div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 </div>
@@ -733,11 +733,24 @@
     if(!t.pack.blSeeded&&!t.pack.beforeLeave.length){t.pack.beforeLeave=DEFAULT_BEFORE_LEAVE();t.pack.blSeeded=true;}
     t.log=t.log||{};t.log.arrived=t.log.arrived||{};t.log.arrivedAt=t.log.arrivedAt||{};t.log.rolled=t.log.rolled||{};
     t.ui=t.ui||{};t.stats=t.stats||{};
+    applyComplete(t);   /* one place: any trip whose final stop is arrived has arrived everywhere */
     return t;
   }
   /* a retired stop (dropped by a later seed revision) keeps its stamps and spend rows in the data
      but is out of the route, the stop list, the progress strip, the day maths and Spend seeding */
   function liveStops(t){return ((t&&t.stops)||[]).filter(function(s){return s&&!s.retired;});}
+  /* Reaching the last stop means you reached all of them (sf-move's sfArrivedV1). An arrival on the
+     final stop is the ONE fact "finished" derives from — miles logged, the strip, the Done pill, the
+     per-stop checks all read trip.log.arrived, so nothing anywhere needs a "complete" flag. Stamps
+     already recorded are kept: this only fills the gaps. */
+  function applyComplete(t){
+    var st=liveStops(t);if(st.length<2)return false;
+    var last=st[st.length-1];
+    if(!t.log.arrived[last.id]&&!t.log.arrivedAt[last.id])return false;
+    var filled=false;
+    st.forEach(function(s){if(!t.log.arrived[s.id]){t.log.arrived[s.id]=true;filled=true;}});
+    return filled;
+  }
   function newTripId(){return "t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
   function createTrip(name,departDate,endDate){
     var v=S.vehicles.filter(function(x){return x.id===S.defaultVehicleId;})[0]||S.vehicles[0]||DEFAULT_VEHICLE;
@@ -920,7 +933,11 @@
   }
   function lblFor(k){return (RT.LBL&&RT.LBL[k])||[0,-8,"middle"];}
   function backupsOf(){var out=[];RT.stops.forEach(function(s){if(s.backup&&isFinite(+s.backup.lat))out.push(s.backup);});return out;}
-  function chargesOf(){var t=T();return (t&&t.charges)||[];}
+  /* A retired charge keeps its id and its place in trip.charges — ids are never renumbered, so the
+     gap it leaves in the sequence is the record of it — but it is out of the map, the charging row,
+     the stats and Spend seeding. Every consumer reads chargesOf(), so this is the only gate. */
+  function liveCharges(t){return ((t&&t.charges)||[]).filter(function(c){return c&&!c.retired;});}
+  function chargesOf(){return liveCharges(T());}
   function buildTripMap(){
     var rg=$("routeG"),ng=$("nodeG");rg.innerHTML="";ng.innerHTML="";
     tripUI={L:0,bg:null,done:null,nodes:[],pos:$("posG")};
@@ -1005,8 +1022,13 @@
     }else tripUI.pos.setAttribute("opacity",0);
     tripUI.nodes.forEach(function(n,i){n.classList.toggle("done",!!t.log.arrived[RT.stops[i].id]||(pr.live&&RT.CUM[i]<=pr.miles+0.5));});
     var next=-1;for(var i=0;i<RT.stops.length;i++){if(RT.CUM[i]>pr.miles+0.5){next=i;break;}}
+    /* Once today's day has been arrived there is no distance left to measure against, so the line
+       drops "of N mi" and simply states the miles. Both forms come from dayProg — nothing is fixed. */
+    var today=dayProg(todayDay());
     $("tripStat").innerHTML=hasRoute()
-      ?('<strong>'+Math.round(pr.miles)+'</strong> of '+num(RT.TOTAL)+' mi'+(next>=0?' · next: '+esc(RT.stops[next].short||RT.stops[next].name)+' in ~'+Math.round(RT.CUM[next]-pr.miles)+' mi':' · arrived'))
+      ?(today.done
+        ?('<strong>'+num(pr.miles)+'</strong> miles'+(next>=0?' · next: '+esc(RT.stops[next].short||RT.stops[next].name):' · arrived'))
+        :('<strong>'+Math.round(pr.miles)+'</strong> of '+num(RT.TOTAL)+' mi'+(next>=0?' · next: '+esc(RT.stops[next].short||RT.stops[next].name)+' in ~'+Math.round(RT.CUM[next]-pr.miles)+' mi':' · arrived')))
       :'No stops yet';
     renderTripProg();
   }
@@ -1842,7 +1864,7 @@
     var inp=a.querySelector("input");inp.value=e.amount;inp.focus();
     a.querySelector("button").addEventListener("click",function(ev){
       ev.stopPropagation();var v=parseFloat(String(inp.value).replace(/[^0-9.]/g,""));
-      if(v>0){e.amount=v;e.planned=false;e.ts=Date.now();save(state);}
+      if(v>0){e.amount=v;e.planned=false;e.auto=false;e.ts=Date.now();save(state);}   /* confirmed by hand: the seeders never touch it again */
       renderSpend(e.id);
     });
     inp.addEventListener("click",function(ev){ev.stopPropagation();});
@@ -1874,13 +1896,27 @@
     var t=T();if(!t)return false;
     return t.charges.some(function(c){return c.id===id;})||t.expenses.some(function(x){return x.id===id;});
   }
+  /* A retired charge takes its auto-seeded Spend row with it. A row the user confirmed by hand
+     (auto:false, set when a planned row is edited) is theirs and stays; a row with no auto flag came
+     from an older build's seeder and nothing in the UI could ever have edited it, so it goes too. */
+  function dropRetiredRows(t){
+    var gone={},any=false;
+    (t.charges||[]).forEach(function(c){if(c.retired)gone[c.id]=true;});
+    if(!Object.keys(gone).length)return false;
+    t.spend.entries=t.spend.entries.filter(function(e){
+      if(!gone[e.id]||e.auto===false)return true;
+      any=true;return false;
+    });
+    return any;
+  }
   function seedCharges(){   /* every render: add any trip.charges session not yet in entries (and not user-deleted) as an actual charging entry */
     var t=T();if(!t)return;
     var have={},dis=t.spend.dismissed||{},added=false;
     t.spend.entries.forEach(function(e){have[e.id]=true;});
+    if(dropRetiredRows(t))added=true;
     t.charges.forEach(function(c){
-      if(c.planned||have[c.id]||dis[c.id]||!c.date)return;   /* planned chargers are map-only until logged as a real session */
-      var e={id:c.id,amount:+c.cost||0,cat:"charging",note:c.name||"Charging",day:dayForDate(parseYMD(c.date)),ts:chgTs(c),planned:false,billsLater:false};
+      if(c.planned||c.retired||have[c.id]||dis[c.id]||!c.date)return;   /* planned chargers are map-only until logged as a real session; retired ones seed nothing */
+      var e={id:c.id,amount:+c.cost||0,cat:"charging",note:c.name||"Charging",day:dayForDate(parseYMD(c.date)),ts:chgTs(c),planned:false,billsLater:false,auto:true};
       stampStopFromDay(t,e,c.stopId||null);
       if(c.kwh>0)e.kwh=c.kwh;
       t.spend.entries.push(e);added=true;
@@ -1893,7 +1929,7 @@
     t.spend.entries.forEach(function(e){have[e.id]=true;});
     t.expenses.forEach(function(x){
       if(have[x.id]||dis[x.id]||!x.date)return;
-      var xe={id:x.id,amount:+x.amount||0,cat:CATMAP[x.cat]?x.cat:"misc",note:x.note||"",day:dayForDate(parseYMD(x.date)),ts:chgTs(x),planned:false,billsLater:false};
+      var xe={id:x.id,amount:+x.amount||0,cat:CATMAP[x.cat]?x.cat:"misc",note:x.note||"",day:dayForDate(parseYMD(x.date)),ts:chgTs(x),planned:false,billsLater:false,auto:true};
       stampStopFromDay(t,xe,x.stopId||null);
       t.spend.entries.push(xe);added=true;
     });
@@ -2137,7 +2173,7 @@
      Pack items are NOT seeded here: sf-move's Pack tab is the Sort catalogue filtered by per-device `disp`,
      so the catalogue below is code and the grouping arrives with an sf-move paste (mergeSfMove). */
   var SF_TRIP_ID="sf-2026";
-  var SF_SEED_REV="sf-move v110 b2739ec";
+  var SF_SEED_REV="sf-move v116 c04cb6c";
   /* the Sort catalogue, ids verbatim — mergeSfMove pairs these with the pasted `disp` to build pack.items */
   var SF_PACK_CATALOGUE=[
       ["g-bag","Gamer bag + current clubs"],["g-shoes","Golf shoes"],["g-gps","Golf GPS / rangefinder"],
@@ -2230,8 +2266,9 @@
        mapsUrl:"https://maps.apple.com/?address=1442A%20Grove%20St%2C%20San%20Francisco%2C%20CA%2094117",
        chargerQuery:"Tesla Supercharger San Francisco CA"}
     ];
-    /* Supercharger sessions, sf-move's CHARGES verbatim. v109 fulfilled the planned Tesla Oasis:
-       chg-oasis is gone and chg-029 is the real session, so nothing in the trip is planned any more. */
+    /* Supercharger sessions, sf-move's CHARGES verbatim. Nothing is planned any more — v109 fulfilled
+       the Tesla Oasis as chg-029 and the trip finished at chg-032. Ids are never renumbered: a session
+       that turns out not to belong gets retired:true, which keeps the id and the gap it explains. */
     var charges=[
       {id:"chg-001", name:"Normal, IL – West Raab Rd", addr:"610 West Raab Rd, Normal, IL 61761", lat:40.5327, lng:-88.9918, date:"2026-09-06", time:"10:27", kwh:29.83, rate:0.35, cost:10.43, min:14},
       {id:"chg-002", name:"Springfield, IL – South Dirksen", addr:"1501 S Dirksen Pkwy, Springfield, IL 62703", lat:39.7755, lng:-89.6089, date:"2026-09-06", time:"11:41", kwh:43.79, rate:0.36, cost:15.76, min:28},
@@ -2261,7 +2298,10 @@
       {id:"chg-026", name:"Ontario, CA", addr:"3760 Inland Empire Blvd, Ontario CA 91764", lat:34.068, lng:-117.588, date:"2026-09-10", time:"12:42", kwh:31.68, rate:0.51, cost:16.15, min:19},
       {id:"chg-027", name:"Castaic, CA", addr:"31884 Castaic Rd, Castaic CA 91384", lat:34.489, lng:-118.620, date:"2026-09-10", time:"14:23", kwh:37.39, rate:0.47, cost:17.57, min:28},
       {id:"chg-028", name:"Tejon Ranch, CA", addr:"5701 Outlets at Tejon Pkwy, Arvin CA 93203", lat:35.052, lng:-118.870, date:"2026-09-10", time:"15:36", kwh:28.67, rate:0.44, cost:12.61, min:20},
-      {id:"chg-029", name:"Tesla Oasis · Lost Hills, CA", addr:"22422 Highway 46, Lost Hills CA 93249", lat:35.617, lng:-119.694, date:"2026-09-10", time:"16:49", kwh:20.72, rate:0.44, cost:9.11, min:14}
+      {id:"chg-029", name:"Tesla Oasis · Lost Hills, CA", addr:"22422 Highway 46, Lost Hills CA 93249", lat:35.617, lng:-119.694, date:"2026-09-10", time:"16:49", kwh:20.72, rate:0.44, cost:9.11, min:14},
+      {id:"chg-030", name:"Harris Ranch, CA", addr:"24505 W Dorris Ave, Coalinga CA 93210", lat:36.141, lng:-120.362, date:"2026-09-10", time:"18:18", kwh:19.68, rate:0.44, cost:8.66, min:21},
+      {id:"chg-031", name:"Harris Ranch, CA", addr:"24505 W Dorris Ave, Coalinga CA 93210", lat:36.141, lng:-120.362, date:"2026-09-10", time:"21:02", kwh:19.68, rate:0.44, cost:8.66, min:28, note:"kWh/cost mirrored from chg-030 in the Tesla app — verify against charging history"},
+      {id:"chg-032", name:"Pleasanton, CA", addr:"6770 Santa Rita Rd, Pleasanton, CA 94588", lat:37.695, lng:-121.881, date:"2026-09-11", time:"07:38", kwh:30.5787, rate:0.48, cost:14.67, min:14}
     ];
     var expenses=[
       {id:"exp-001",cat:"groceries",amount:10.65,note:"County Market · Springfield IL",date:"2026-09-06",time:"11:48"},
@@ -2272,7 +2312,11 @@
       {id:"exp-006",cat:"groceries",amount:41.10,note:"Walmart · Amarillo TX",date:"2026-09-07",time:"19:37"},
       {id:"exp-007",cat:"hotel",amount:231.21,note:"Best Western Arizonian Inn · booked Orbitz",date:"2026-09-08",time:"17:00"},
       {id:"exp-008",cat:"groceries",amount:34.20,note:"Safeway · Holbrook AZ",date:"2026-09-08",time:"16:59"},
-      {id:"exp-009",cat:"hotel",amount:252.74,note:"Harris Ranch Inn · booked Expedia · incl. $13.74 stay protection",date:"2026-09-10",time:"14:30"}
+      {id:"exp-009",cat:"hotel",amount:252.74,note:"Harris Ranch Inn · booked Expedia · incl. $13.74 stay protection",date:"2026-09-10",time:"14:30"},
+      /* sf-move's PLACES with a cost each seed one Spend row under the place id; the Places LAYER is
+         Build 3, so only the rows come across. kind food|coffee → "food", sight → "misc". */
+      {id:"pl-001",cat:"food",amount:17.83,note:"Rudy's Country Store & Bar-B-Q · Texas BBQ",date:"2026-09-07",time:"16:55"},
+      {id:"pl-002",cat:"food",amount:156.44,note:"Prime Steakhouse at Harris Ranch · Steakhouse",date:"2026-09-10",time:"20:44"}
     ];
     /* seedSpend's surviving planned rows: every hotel row is booked now, so only pet fees, tolls and the shipment stand */
     var ts=Date.parse("2026-09-06T00:00:00Z");
@@ -2313,7 +2357,9 @@
       expenses:expenses,
       spend:{entries:entries,dismissed:{}},
       pack:{items:[],packed:{},beforeLeave:beforeLeave,collapsed:{},blSeeded:true},
-      log:{arrived:{},arrivedAt:{},rolled:{}},
+      /* the trip finished: SF arrival 9:11 AM Sept 11. applyComplete() fills every earlier stop —
+         nothing hard-codes "complete", it is all derived from an arrival on the final stop. */
+      log:{arrived:{},arrivedAt:{sf:"2026-09-11T09:11"},rolled:{}},
       ui:{},
       stats:{},
       seedRev:SF_SEED_REV
@@ -2369,6 +2415,10 @@
       if(t.spend.entries[k].planned===false)return;         /* confirmed by hand: the seed never overwrites it */
       t.spend.entries[k]=JSON.parse(JSON.stringify(r));
     });
+    Object.keys(seed.log.arrivedAt).forEach(function(id){
+      if(!t.log.arrivedAt[id])t.log.arrivedAt[id]=seed.log.arrivedAt[id];   /* a stamp already on the phone wins */
+    });
+    applyComplete(t);
     if(!isYMD(t.departDate)||t.seedRev===undefined)t.departDate=seed.departDate;
     t.seedRev=seed.seedRev;
     normalizeTrip(t);
@@ -2560,6 +2610,12 @@
       });
     });
     if(isYMD(pt.departDate))t.departDate=pt.departDate;
+    applyComplete(t);   /* the paste's final-stop arrival makes every earlier stop arrived too */
+    (o.charges||[]).forEach(function(c){   /* a Mile Marker-shaped paste can carry retired charges */
+      if(!c||!c.id)return;
+      var cur=(t.charges||[]).filter(function(x){return x.id===c.id;})[0];
+      if(cur&&c.retired)cur.retired=true;
+    });
     Object.keys(o.packed||{}).forEach(function(id){if(o.packed[id]){if(!t.pack.packed[id])t.pack.packed[id]=true;n.packed++;}});
     var blHave={};t.pack.beforeLeave.forEach(function(i){blHave[i.id]=true;});
     ((o.customTasks||{}).bl||[]).forEach(function(c){if(c&&c.id&&!blHave[c.id]){t.pack.beforeLeave.push({id:c.id,t:c.t,own:true});blHave[c.id]=true;}});
@@ -2579,6 +2635,7 @@
       t.spend.dismissed[k]=true;
       if(byId[k]!==undefined){t.spend.entries=t.spend.entries.filter(function(x){return x.id!==k;});byId={};t.spend.entries.forEach(function(x,i){byId[x.id]=i;});}
     });
+    dropRetiredRows(t);   /* after the pasted rows land, or a retired charge's row rides back in */
     dropStalePlanned(t);
     n.items=packFromDisp(t,o.disp,o.removed);
     if(+ps.budget>0){t.spend.budget=+ps.budget;n.budget=+ps.budget;}

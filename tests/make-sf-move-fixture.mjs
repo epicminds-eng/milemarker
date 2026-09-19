@@ -73,15 +73,22 @@ for (const label of PACK_ME) {
   await row.locator(".pring").click();
 }
 
-/* 3. Mark arrived on the next un-stamped stop. v107 backfills strobert/amarillo/holbrook itself
-      (arrivedAtV1, day2ArrivedV1, day3ArrivedV1), so Mom's is the first stop still showing the button.
-      The stop cards live in the Itinerary sub-tab from v107 on. */
+/* 3. Arrival stamps. From v116 the trip is finished: sfArrivedV1 stamps SF and marks every earlier
+      stop arrived, so there is no "Mark arrived" button left to tap and nothing to add by hand. Undoing
+      and re-marking one would overwrite a real arrival time with now(), so the generator just checks
+      that the finished state is there. The stop cards live in the Itinerary sub-tab. */
 await page.locator("#nav-trip").click();
 await page.waitForSelector("#page-trip.active");
 await page.locator('#tripSeg [data-s="itinerary"]').click();
-const arrive = page.locator('#tripStops .card[data-stop="moms"] [data-arr]').first();
-await arrive.scrollIntoViewIfNeeded();
-await arrive.click();
+await page.waitForSelector('#tripStops .card[data-stop="sf"]');
+/* read the store, not the cards: sf-move still renders "Mark arrived" on the CURRENT stop even once
+   it is arrived, because status "cur" beats "done" in its per-stop render */
+const done = await page.evaluate(() => {
+  const t = JSON.parse(localStorage.getItem("sfMoveApp_v1")).trip;
+  return { arrived: Object.keys(t.arrived).filter(k => t.arrived[k]), sf: t.arrivedAt.sf };
+});
+if (!done.sf || done.arrived.length < 6)
+  throw new Error(`sfArrivedV1 did not run: ${JSON.stringify(done)}`);
 
 /* 4. budget 1500 */
 await page.locator("#nav-spend").click();
@@ -97,6 +104,7 @@ const obj = JSON.parse(raw);
 writeFileSync(OUT, JSON.stringify(obj, null, 2) + "\n");
 console.log(`wrote ${OUT}`);
 console.log(`  arrived: ${Object.keys(obj.trip.arrived).filter(k => obj.trip.arrived[k]).join(", ")}`);
+console.log(`  arrivedAt.sf: ${obj.trip.arrivedAt.sf}`);
 console.log(`  packed: ${Object.keys(obj.packed).filter(k => obj.packed[k]).join(", ")}`);
 console.log(`  disp: ${Object.entries(obj.disp).map(([k, v]) => `${k}=${v}`).join(", ")}`);
 console.log(`  removed: ${Object.keys(obj.removed).join(", ")}`);
