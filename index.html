@@ -322,15 +322,19 @@
   .tprog .tpn small{display:block;font-size:11px;font-weight:500;color:#6B7280;margin-top:1px;}
   .tprog .tpn.first{transform:none;text-align:left;}.tprog .tpn.last{transform:translateX(-100%);text-align:right;}
   .tprog .tpn.next,.tprog .tpn.next small{color:#2F6BFF;}
-  .tprog .tptiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;}
-  .tprog .tptiles>div{background:#F3F4F7;border-radius:16px;padding:14px;min-width:0;}
-  .tprog .tptiles>div:last-child{grid-column:1/-1;}
-  .tprog .tt{font-size:12px;color:#6B7280;margin-bottom:10px;}
-  .tprog .tn{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:baseline;gap:8px;white-space:nowrap;}
-  .tprog .tn small{font-size:12px;font-weight:500;color:#6B7280;}
-  .tprog .tn .bolt{color:#E82127;font-size:17px;align-self:center;}
+  /* STAT ROW (port #7a, sf-move 542ed6c): one row, one line. --n equal columns set from the item count —
+     minmax(0,1fr) so a long value can never widen its own column — every cell nowrap and never ellipsized,
+     and the value+label pair sits on the bottom so the cells read off one baseline. */
+  .statrow{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:var(--s2);}
+  .statrow>*{min-width:0;display:flex;flex-direction:column;justify-content:flex-end;}
+  .statrow>* *{white-space:nowrap;overflow:visible;text-overflow:clip;}
+  .tprog .tptiles{margin-top:var(--s1);}
+  .tprog .tptiles>div{background:#F3F4F7;border-radius:var(--r2);padding:var(--s3) var(--s2);}
+  .tprog .tt{font-size:12px;color:#6B7280;margin-bottom:var(--s2);}
+  .tprog .tt .bolt{color:#E82127;}
+  .tprog .tn{font-size:clamp(17px,5vw,22px);font-weight:700;letter-spacing:-.02em;}
+  .tprog .tn small{display:block;font-size:12px;font-weight:500;color:#6B7280;margin-top:var(--s1);letter-spacing:0;}
   @media (max-width:599px){.tprog .tpn.opt{display:none;}}
-  @media (min-width:600px){.tprog .tptiles{grid-template-columns:repeat(3,1fr);}.tprog .tptiles>div:last-child{grid-column:auto;}}
   /* Filter sheet (Stats) */
   .fsheet .frow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--sep);}
   .fsheet .frow:last-of-type{border-bottom:0;}
@@ -354,8 +358,8 @@
   .legend{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px;color:var(--secondary);}
   .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px;}
   .legend b{color:var(--label);font-weight:600;float:right;}
-  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
-  .kpi{background:var(--bg);border-radius:12px;padding:8px 12px;text-align:center;}
+  .kpis{margin-top:var(--s3);}
+  .kpi{background:var(--bg);border-radius:var(--r2);padding:var(--s2) 0;text-align:center;}
   .kpi b{display:block;font-size:17px;font-weight:700;}
   .kpi span{font-size:11px;color:#8E8E93;text-transform:uppercase;letter-spacing:.05em;}
   .hint{font-size:12px;color:#8E8E93;margin-top:8px;}
@@ -592,10 +596,10 @@
       <div class="sub">Every dollar the drive costs, by day.</div>
     </div>
     <div class="card spc">
-      <div class="total"><b id="spSoFar">$0</b><span>so far · ~<span id="spProj">$0</span> projected</span></div>
+      <div class="total"><b id="spSoFar">$0</b><span>so far · <span id="spProj">$0</span> projected</span></div>
       <div class="bar" id="spBar"></div>
       <div class="legend" id="spLegend"></div>
-      <div class="kpis">
+      <div class="kpis statrow" style="--n:3">
         <div class="kpi"><b id="kMile">–</b><span>per mile</span></div>
         <div class="kpi"><b id="kDay">–</b><span>per day</span></div>
         <div class="kpi"><b id="kMiles">0</b><span>mi driven</span></div>
@@ -604,12 +608,12 @@
     </div>
     <div id="spendDays"></div>
     <div class="card spc">
-      <div class="dayh"><h2>Projection</h2><b>~<span id="spProj2">$0</span></b></div>
+      <div class="dayh"><h2>Projection</h2><b><span id="spProj2">$0</span></b></div>
       <p class="est" id="spEst"></p>
     </div>
   </div>
 
-  <div class="appver" id="appVer">Mile Marker v5 · build 2026-09-19 · 622e75e</div>
+  <div class="appver" id="appVer">Mile Marker v6 · build 2026-09-24 · 31b8b21</div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 </div>
@@ -1028,13 +1032,57 @@
     $("tripStat").innerHTML=hasRoute()
       ?(today.done
         ?('<strong>'+num(pr.miles)+'</strong> miles'+(next>=0?' · next: '+esc(RT.stops[next].short||RT.stops[next].name):' · arrived'))
-        :('<strong>'+Math.round(pr.miles)+'</strong> of '+num(RT.TOTAL)+' mi'+(next>=0?' · next: '+esc(RT.stops[next].short||RT.stops[next].name)+' in ~'+Math.round(RT.CUM[next]-pr.miles)+' mi':' · arrived')))
+        :('<strong>'+Math.round(pr.miles)+'</strong> of '+num(RT.TOTAL)+' mi'+(next>=0?' · next: '+esc(RT.stops[next].short||RT.stops[next].name)+' in '+num(RT.CUM[next]-pr.miles)+' mi':' · arrived')))
       :'No stops yet';
     renderTripProg();
   }
   var chgOpen=false;
   function chgPlace(c){return String(c.name||"").split(/\s[–—-]\s/)[0];}
-  function chgTs(c){var d=parseYMD(c.date),t=String(c.time||"00:00").split(":");return new Date(d.getFullYear(),d.getMonth(),d.getDate(),+t[0]||0,+t[1]||0).getTime();}
+  /* ---------- TIME ZONES (port #1, sf-move a750b1a). A trip crosses zones and every stamp is stored as a
+     zone-less wall clock, so a stamp is a wall clock, not an instant: Amarillo 08:00 CDT to Holbrook 16:30
+     MST is 10h30m, and reading both in one zone loses two hours out of door-to-door. Stamps and charge
+     times stay STORED and DISPLAYED as the wall clock that was written down — only the maths converts, and
+     the maths never consults the phone's zone. ---------- */
+  var TZ_STATE={IL:"America/Chicago",MO:"America/Chicago",OK:"America/Chicago",TX:"America/Chicago",KS:"America/Chicago",
+    NM:"America/Denver",CO:"America/Denver",AZ:"America/Phoenix",CA:"America/Los_Angeles",NV:"America/Los_Angeles"};
+  var TZ_OK=(function(){try{return typeof Intl!=="undefined"&&!!new Intl.DateTimeFormat("en-US",{timeZone:"America/Phoenix"}).formatToParts;}catch(e){return false;}})();
+  var TZ_FMT={},TZ_MEMO={};
+  function tzFmt(tz){return TZ_FMT[tz]||(TZ_FMT[tz]=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour12:false,
+    year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}));}
+  function tzOffset(ts,tz){   /* what the zone is offset from UTC AT THIS INSTANT, in ms — so DST is handled by asking, not by a table */
+    var p={};tzFmt(tz).formatToParts(new Date(ts)).forEach(function(x){if(x.type!=="literal")p[x.type]=x.value;});
+    return Date.UTC(+p.year,+p.month-1,+p.day,(+p.hour)%24,+p.minute,+p.second)-Math.floor(ts/1000)*1000;   /* hour "24" is midnight in some engines */
+  }
+  /* solve for the instant whose local time in tz is this wall clock. One guess, then one correction:
+     the guess can land on the wrong side of a DST change, and the second pass settles it. */
+  function zonedToEpoch(v,tz){
+    var m=/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(v||""));if(!m)return NaN;
+    var y=+m[1],mo=+m[2]-1,da=+m[3],h=+m[4],mi=+m[5];
+    if(!tz||!TZ_OK)return new Date(y,mo,da,h,mi).getTime();   /* no zone anywhere on the trip, or no IANA support: the device's own zone */
+    var key=tz+"|"+m[0];if(TZ_MEMO[key]!==undefined)return TZ_MEMO[key];
+    var wall=Date.UTC(y,mo,da,h,mi),t=wall-tzOffset(wall,tz);
+    t=wall-tzOffset(t,tz);
+    return (TZ_MEMO[key]=t);
+  }
+  function tzForAddr(a){var m=/,?\s*([A-Z]{2})\s+\d{5}/.exec(String(a||""));return (m&&TZ_STATE[m[1]])||null;}
+  /* A stop with no tz of its own falls back to the trip's first stop's zone — the New-trip flow fills tz
+     from the geocoder later (Build 4); until then a hand-made trip reads in its home zone, not the phone's. */
+  function stopTz(st,t){
+    if(st&&st.tz)return st.tz;
+    var first=liveStops(t||T())[0];
+    return (first&&first.tz)||null;
+  }
+  function rolledTz(st,t){   /* you roll FROM the stop before: the morning happened in that zone */
+    var ls=liveStops(t||T()),k=ls.indexOf(st);
+    return stopTz(k>0?ls[k-1]:st,t);
+  }
+  function chgTz(c,t){   /* a Tesla screenshot records station-local time, so the state in the address is the zone */
+    if(!c)return null;
+    var z=tzForAddr(c.addr);if(z)return z;
+    return c.date?stopTz(stopClosingDay(t||T(),dayForDate(parseYMD(c.date))),t):null;   /* no address: the zone of the day it belongs to */
+  }
+  function chgTs(c){return zonedToEpoch(String(c.date||"")+"T"+String(c.time||"00:00"),chgTz(c));}   /* the INSTANT — ordering and interval maths */
+  function chgWall(c){var d=parseYMD(c.date),t=String(c.time||"00:00").split(":");return new Date(d.getFullYear(),d.getMonth(),d.getDate(),+t[0]||0,+t[1]||0).getTime();}   /* the wall clock as written — display only, and the ts a seeded Spend row stores */
   function realCharges(){return chargesOf().filter(function(c){return !c.planned&&c.kwh>0;}).sort(function(a,b){return chgTs(a)-chgTs(b);});}
   function chgRate(c){return c.rate>0?c.rate:(c.cost>0&&c.kwh>0?c.cost/c.kwh:0);}
   function chgShort(c,all){
@@ -1293,16 +1341,20 @@
   function scopeDay(){var s=stS().scope;return s==="trip"?null:Math.max(1,Math.min(RT.DAYS,+s||1));}
   function dayStats(d){
     var t=T(),st=stopForDay(d);if(!t||!st)return null;var k=RT.stops.indexOf(st);
-    var rolled=t.log.rolled[st.id]?parseLocalISO(t.log.rolled[st.id]):null,arrived=t.log.arrivedAt[st.id]?parseLocalISO(t.log.arrivedAt[st.id]):null;
+    var rolledS=t.log.rolled[st.id]||null,arrivedS=t.log.arrivedAt[st.id]||null;
+    var rolled=rolledS?parseLocalISO(rolledS):null,arrived=arrivedS?parseLocalISO(arrivedS):null;   /* the wall clock, for the chips and the day card */
+    /* the same two stamps as INSTANTS: rolled in the previous stop's zone, arrived in this one's */
+    var rTz=rolledTz(st,t),aTz=stopTz(st,t);
+    var rolledT=rolledS?zonedToEpoch(rolledS,rTz):null,arrivedT=arrivedS?zonedToEpoch(arrivedS,aTz):null;
     var ch=chargesOf().filter(function(c){return !c.planned&&c.date&&dayForDate(parseYMD(c.date))===d;}).sort(function(a,b){return chgTs(a)-chgTs(b);});
     if(!rolled&&!arrived&&!ch.length&&!t.log.arrived[st.id])return null;
     var kwh=0,cost=0,min=0;ch.forEach(function(c){kwh+=c.kwh||0;cost+=c.cost||0;min+=c.min||0;});
-    var miles=+st.mi||0,d2d=(rolled&&arrived&&arrived>rolled)?(arrived-rolled)/60000:null;
+    var miles=+st.mi||0,d2d=(rolledT!==null&&arrivedT!==null&&arrivedT>rolledT)?(arrivedT-rolledT)/60000:null;
     var drive=d2d!==null?d2d-min:null,mph=(drive!==null&&drive>0)?miles/(drive/60):null;
     var prev=RT.CUM[k-1]||0,stints=[];
     ch.forEach(function(c){var l=locate({lat:+c.lat,lng:+c.lng});if(!l)return;stints.push(l.miles-prev);prev=l.miles;});
     var longest=stints.length?Math.max.apply(null,stints):null,whmi=(kwh>0&&miles>0)?kwh/miles*1000:null;
-    return{d:d,stop:st,rolled:rolled,arrived:arrived,miles:miles,ch:ch,kwh:kwh,cost:cost,chMin:min,d2d:d2d,drive:drive,mph:mph,longest:longest,whmi:whmi};
+    return{d:d,stop:st,rolled:rolled,arrived:arrived,rolledT:rolledT,arrivedT:arrivedT,rolledTz:rTz,tz:aTz,miles:miles,ch:ch,kwh:kwh,cost:cost,chMin:min,d2d:d2d,drive:drive,mph:mph,longest:longest,whmi:whmi};
   }
   function tripStats(){
     var days=[],d;for(d=1;d<=RT.DAYS;d++){var r=dayStats(d);if(r)days.push(r);}
@@ -1364,7 +1416,7 @@
     var costBadge=S2.costUnit==="mi"?dash2(o.perMi,function(v){return "$"+v.toFixed(2)+"/mi";}):dash2(o.perKwh,function(v){return "$"+v.toFixed(2)+"/kWh";});
     w.appendChild(el("div","kpis",
       kpi("acc","Miles driven",o.miles>0?num(o.miles):"—",o.miles>0?"↑ "+Math.round(o.pct)+"%":"",null,(sd===null||!o.leg||!o.leg.st)?"Remaining: <b>"+num(o.rem)+" mi</b>":"Leg: <b>"+num(o.leg.mi)+" mi</b> to "+esc(o.leg.st.short||o.leg.st.name))+
-      kpi(null,"Charging spend",o.cost>0?money2(o.cost):"—",o.cost>0?costBadge:"",null,sd===null?"Projected to the end: <b>"+dash2(t.proj,function(v){return "~"+money(v);})+"</b>":"Trip to date: <b>"+(t.cost>0?money2(t.cost):"—")+"</b>")+
+      kpi(null,"Charging spend",o.cost>0?money2(o.cost):"—",o.cost>0?costBadge:"",null,sd===null?"Projected to the end: <b>"+dash2(t.proj,function(v){return money(v);})+"</b>":"Trip to date: <b>"+(t.cost>0?money2(t.cost):"—")+"</b>")+
       kpi(null,"Time on the road",hm(o.d2d),o.share!==null?Math.round(o.share)+"% charging":"","bad","Driving: <b>"+hm(o.drive)+"</b>"+(o.mph?" · "+Math.round(o.mph)+" mph":""))+
       kpi(null,"Time at chargers",o.stops?hm(o.chMin):"—",o.avgMin!==null?"avg "+Math.round(o.avgMin)+"m":"",null,o.longest?"Longest: <b>"+hm(o.longest.min)+"</b> "+esc(chgShort(o.longest,o.sessions))+" · "+o.stops+" stop"+(o.stops===1?"":"s"):"No sessions yet")));
     if(!hasRoute()){w.appendChild(el("div","card",'<h2>Miles per day</h2><div class="empty">Add stops to this trip and the daily cards fill in.</div>'));return;}
@@ -1384,28 +1436,32 @@
     var maxMi=Math.max.apply(null,rows.map(function(r){return r.dp.mi;}).concat([1])),maxMin=Math.max.apply(null,rows.map(function(r){return r.hrs.min||0;}).concat([1])),maxS=Math.max.apply(null,rows.map(function(r){return r.sp.tot;}).concat([1]));
     var hb=rows.map(function(r){var bar,val;
       if(M==="hours"){var h=r.hrs;if(!h.est){var a=h.drive/maxMin*100,b=h.ch/maxMin*100;bar='<i class="on seg" style="width:'+a.toFixed(1)+'%"></i><i class="r seg" style="left:'+a.toFixed(1)+'%;width:'+b.toFixed(1)+'%"></i>';val='<div class="v">'+hm(h.min)+'</div>';}
-        else{bar='<i style="width:'+(h.min?(h.min/maxMin*100).toFixed(1):0)+'%"></i>';val='<div class="v g">'+(h.min?"~"+halfH(h.min/60):"—")+'</div>';}}
+        else{bar='<i style="width:'+(h.min?(h.min/maxMin*100).toFixed(1):0)+'%"></i>';val='<div class="v g">'+(h.min?halfH(h.min/60):"—")+'</div>';}}
       else if(M==="spend"){var x=r.sp;if(!x.est){var L=0;bar=ORDER.filter(function(k){return x.act[k];}).map(function(k){var wd=x.act[k]/maxS*100,s='<i class="seg" style="left:'+L.toFixed(1)+'%;width:'+wd.toFixed(1)+'%;background:'+SPC[k]+'"></i>';L+=wd;return s;}).join("");val='<div class="v">'+money(x.tot)+'</div>';}
-        else{bar='<i style="width:'+(x.tot/maxS*100).toFixed(1)+'%"></i>';val='<div class="v g">~'+money(x.tot)+'</div>';}}
+        else{bar='<i style="width:'+(x.tot/maxS*100).toFixed(1)+'%"></i>';val='<div class="v g">'+money(x.tot)+'</div>';}}
       else{var p=r.dp;if(p.done||p.so>0){bar='<i class="on" style="width:'+(p.so/maxMi*100).toFixed(1)+'%"></i>';val='<div class="v">'+num(p.so)+'</div>';}
-        else{bar='<i style="width:'+(p.mi/maxMi*100).toFixed(1)+'%"></i>';val='<div class="v g">~'+num(p.mi)+'</div>';}}
+        else{bar='<i style="width:'+(p.mi/maxMi*100).toFixed(1)+'%"></i>';val='<div class="v g">'+num(p.mi)+'</div>';}}
       return '<div class="row'+(r.d===sel?' sel':'')+'" data-d="'+r.d+'" role="button" tabindex="0"><div class="l">'+WD3[r.dt.getDay()]+'<small>Day '+r.d+(r.dp.st?' · '+esc(r.dp.st.short||r.dp.st.name):'')+'</small></div><div class="tr">'+bar+'</div>'+val+'</div>';}).join("");
     var sr=rows.filter(function(r){return r.d===sel;})[0],tip='';
     if(sr){var sds=sr.ds,dn=sr.dp.done||sr.dp.so>0;
       tip='<div class="tip"><b>'+dayTitle(sr.d)+'</b>'+
-        '<div><span><i class="b"></i>Miles</span><span>'+(dn?num(sr.dp.so):"~"+num(sr.dp.mi))+'</span></div>'+
+        '<div><span><i class="b"></i>Miles</span><span>'+(dn?num(sr.dp.so):num(sr.dp.mi))+'</span></div>'+
         '<div><span><i class="r"></i>Charging</span><span>'+((sds&&sds.ch.length)?hm(sds.chMin)+" · "+money2(sds.cost):"—")+'</span></div>'+
-        '<div><span><i></i>Door to door</span><span>'+(sr.hrs.est?(sr.hrs.min?"~"+halfH(sr.hrs.min/60):"—"):hm(sr.hrs.min))+'</span></div>'+
-        '<div><span><i></i>Spend</span><span>'+(sr.sp.est?"~":"")+money(sr.sp.tot)+'</span></div></div>';}
+        '<div><span><i></i>Door to door</span><span>'+(sr.hrs.est?(sr.hrs.min?halfH(sr.hrs.min/60):"—"):hm(sr.hrs.min))+'</span></div>'+
+        '<div><span><i></i>Spend</span><span>'+money(sr.sp.tot)+'</span></div></div>';}
     w.appendChild(card("Miles per day",'<button class="pill" type="button" data-act="metric">'+ML[M]+' <i>⌄</i></button>',(rows.length?'<div class="hb">'+hb+'</div>':'<div class="empty">No driven days yet — turn on planned days in Filter.</div>')+tip));
     /* Minutes at each charger — its own day picker */
-    var lastChg=t.days.filter(function(r){return r.ch.length;}).map(function(r){return r.d;}).pop()||1,cd=S2.chgDay?Math.max(1,Math.min(RT.DAYS,+S2.chgDay)):(sd||lastChg),cds=dayStats(cd),cs=cds?cds.ch.filter(function(c){return c.min>0;}):[];
-    var dayOpts=[];for(d=1;d<=RT.DAYS;d++){var sfd=stopForDay(d);dayOpts.push([d,"Day "+d+(sfd?" · "+(sfd.short||sfd.name):"")]);}
+    /* Minutes at each charger (port #6, pattern from sf-move aaf8e17): "Trip · every logged session" is the
+       FIRST option and the DEFAULT — stats.chgDay null reads "all" unless the page itself is scoped to a day */
+    var cd=S2.chgDay==="all"?"all":(S2.chgDay?Math.max(1,Math.min(RT.DAYS,+S2.chgDay)):(sd||"all")),allDays=cd==="all";
+    var cds=allDays?null:dayStats(cd),cs=(allDays?realCharges():(cds?cds.ch:[])).filter(function(c){return c.min>0;});
+    var dayOpts=[["all","Trip · every logged session"]];for(d=1;d<=RT.DAYS;d++){var sfd=stopForDay(d);dayOpts.push([d,"Day "+d+(sfd?" · "+(sfd.short||sfd.name):"")]);}
     var maxC=Math.max.apply(null,cs.map(function(c){return c.min;}).concat([1])),cmin=0;cs.forEach(function(c){cmin+=c.min;});
-    var cm=cds?cds.miles:0,cshare=(cds&&cds.d2d>0)?cmin/cds.d2d*100:null;
-    w.appendChild(card("Minutes at each charger",pillSel("Day "+cd,"chgDay",dayOpts,cd),
-      (cs.length?'<div class="hb">'+cs.map(function(c){var ratio=c.min/maxC;return '<div class="l">'+esc(chgTiny(c,cs))+'<small>'+fmtTime(chgTs(c))+'</small></div><div class="tr"><i class="r" style="width:'+(ratio*100).toFixed(0)+'%;opacity:'+Math.max(.35,ratio).toFixed(2)+'"></i></div><div class="v">'+hm(c.min)+'</div>';}).join("")+'</div>':'<div class="empty">No sessions logged for Day '+cd+'</div>')+
-      '<div class="mini three">'+mini("Charging share of day",dash2(cshare,function(v){return Math.round(v)+"%";}),cshare!==null?hm(cmin)+" / "+hm(cds.d2d):"")+mini("Minutes per 100 mi",(cs.length&&cm)?String(Math.round(cmin/cm*100)):"—",cs.length?"min":"","k")+mini("Stops per 100 mi",(cs.length&&cm)?(cs.length/cm*100).toFixed(1):"—",cs.length&&cm?"every ~"+num(cm/cs.length)+" mi":"","k")+'</div>'));
+    var tripD2d=0,anyD2d=false;t.days.forEach(function(r){if(r.d2d!==null){anyD2d=true;tripD2d+=r.d2d;}});
+    var cm=allDays?t.done:(cds?cds.miles:0),cd2d=allDays?(anyD2d?tripD2d:null):(cds?cds.d2d:null),cshare=(cd2d>0)?cmin/cd2d*100:null;
+    w.appendChild(card("Minutes at each charger",pillSel(allDays?"Trip · every logged session":"Day "+cd,"chgDay",dayOpts,cd),
+      (cs.length?'<div class="hb">'+cs.map(function(c){var ratio=c.min/maxC;return '<div class="l" data-chg="'+esc(c.id)+'">'+esc(chgTiny(c,cs))+'<small>'+(allDays?esc(fmtShort(parseYMD(c.date)))+" ":"")+fmtTime(chgWall(c))+'</small></div><div class="tr"><i class="r" style="width:'+(ratio*100).toFixed(0)+'%;opacity:'+Math.max(.35,ratio).toFixed(2)+'"></i></div><div class="v">'+hm(c.min)+'</div>';}).join("")+'</div>':'<div class="empty">'+(allDays?"No sessions logged yet":"No sessions logged for Day "+cd)+'</div>')+
+      '<div class="mini three">'+mini(allDays?"Charging share of the trip":"Charging share of day",dash2(cshare,function(v){return Math.round(v)+"%";}),cshare!==null?hm(cmin)+" / "+hm(cd2d):"")+mini("Minutes per 100 mi",(cs.length&&cm)?String(Math.round(cmin/cm*100)):"—",cs.length?"min":"","k")+mini("Stops per 100 mi",(cs.length&&cm)?(cs.length/cm*100).toFixed(1):"—",cs.length&&cm?"every "+num(cm/cs.length)+" mi":"","k")+'</div>'));
     /* Charging speed — pill toggles kWh/min ↔ $/min */
     var U=S2.speedUnit,sv=o.sessions.filter(function(c){return c.min>0;}).map(function(c){return{c:c,v:U==="usd"?(c.cost||0)/c.min:c.kwh/c.min};}).sort(function(a,b){return b.v-a.v;}),maxV=sv.length?sv[0].v:1;
     var note=sv.length?(U==="usd"?"Costliest minute was "+esc(chgShort(sv[0].c,o.sessions))+" at $"+sv[0].v.toFixed(2)+"/min — a slow plug at a high rate hurts twice.":"Fastest plug was "+esc(chgShort(sv[0].c,o.sessions))+" at "+sv[0].v.toFixed(2)+" kWh/min. Slower sessions = arrived with more battery."):"Log a charging session to rank the plugs.";
@@ -1419,7 +1475,7 @@
     var TH=[["Stop",null],["Day · time","time"],["kWh","kwh"],["Rate","rate"],["Minutes","min"],["kWh/min",null],["Cost","cost"]];
     w.appendChild(card("Charging sessions",'<button class="pill" type="button" data-act="sort">↕ Sort by '+srt.l+' '+arrow+'</button>',
       list.length?'<div class="tw"><table><thead><tr>'+TH.map(function(h){return '<th'+(h[1]===srt.k?' class="on"':'')+'>'+h[0]+(h[1]===srt.k?' '+arrow:'')+'</th>';}).join("")+'</tr></thead><tbody>'+
-      list.map(function(c){var dt=parseYMD(c.date);return '<tr><td><span class="st"><i>⚡︎</i>'+esc(chgPlace(c))+'</span></td><td>'+WD3[dt.getDay()]+' · '+fmtTime(chgTs(c))+'</td><td>'+c.kwh.toFixed(1)+'</td><td><span class="tag'+tagCls(c)+'">$'+chgRate(c).toFixed(2)+'</span></td><td>'+(c.min||"—")+'</td><td>'+(c.min>0?(c.kwh/c.min).toFixed(2):"—")+'</td><td>'+money2(c.cost||0)+'</td></tr>';}).join("")+'</tbody></table></div>':'<div class="empty">No sessions '+(S2.sessionsScope==="all"?"logged yet":"in this scope — Filter › Sessions: all days")+'</div>'));
+      list.map(function(c){var dt=parseYMD(c.date);return '<tr><td><span class="st"><i>⚡︎</i>'+esc(chgPlace(c))+'</span></td><td>'+WD3[dt.getDay()]+' · '+fmtTime(chgWall(c))+'</td><td>'+c.kwh.toFixed(1)+'</td><td><span class="tag'+tagCls(c)+'">$'+chgRate(c).toFixed(2)+'</span></td><td>'+(c.min||"—")+'</td><td>'+(c.min>0?(c.kwh/c.min).toFixed(2):"—")+'</td><td>'+money2(c.cost||0)+'</td></tr>';}).join("")+'</tbody></table></div>':'<div class="empty">No sessions '+(S2.sessionsScope==="all"?"logged yet":"in this scope — Filter › Sessions: all days")+'</div>'));
   }
   /* ---------- TRIP PROGRESS strip under the map: route by cumulative miles, fill to the current position, stops as circles, three tiles. The flag cycles the metric (trip.stats.arcMetric) ---------- */
   function routePos(){   /* live fix if tracking, else the furthest of: Arrived stops, logged (non-planned) charger positions */
@@ -1434,8 +1490,8 @@
     var head='<div class="tph"><h2>Trip progress</h2><span class="tpill">'+num(RT.TOTAL)+' mi · Day '+cur+' of '+RT.DAYS+'</span></div>';
     var d2d=0,nd=0;t.days.forEach(function(r){if(r.d2d!==null){d2d+=r.d2d;nd++;}});
     var stops=realCharges().length;
-    var tiles='<div class="tptiles"><div><div class="tt">Remaining</div><div class="tn">'+num(Math.max(0,RT.TOTAL-pos))+'<small>mi</small></div></div>'+
-      '<div><div class="tt">Charging</div><div class="tn"><span class="bolt">⚡︎</span>'+(stops?hm(t.chMin):"—")+'<small>'+stops+' stop'+(stops===1?"":"s")+'</small></div></div>'+
+    var tiles='<div class="tptiles statrow" style="--n:3"><div><div class="tt">Remaining</div><div class="tn">'+num(Math.max(0,RT.TOTAL-pos))+'<small>mi</small></div></div>'+
+      '<div><div class="tt"><span class="bolt">⚡︎</span> Charging</div><div class="tn">'+(stops?hm(t.chMin):"—")+'<small>'+stops+' stop'+(stops===1?"":"s")+'</small></div></div>'+
       '<div><div class="tt">On the road</div><div class="tn">'+(nd?hm(d2d):"—")+'<small>'+nd+' day'+(nd===1?"":"s")+'</small></div></div></div>';
     if(!hasRoute()){
       w.innerHTML=head+'<div class="tpw"><div class="tptrack"><i class="fill" style="width:0%"></i><span class="tpring" style="left:0%"></span></div><div class="tpnames"></div></div>'+tiles;
@@ -1443,7 +1499,7 @@
     }
     var daysDone=RT.stops.filter(function(s,i){return i>0&&t0.log.arrived[s.id];}).length,flag;
     if(S2.arcMetric==="days")flag=daysDone+" of "+RT.DAYS+" days · "+Math.round(daysDone/RT.DAYS*100)+"%";
-    else if(S2.arcMetric==="spend")flag=money(sp.soFar)+" of ~"+money(sp.proj)+" · "+(sp.proj>0?Math.round(sp.soFar/sp.proj*100):0)+"%";
+    else if(S2.arcMetric==="spend")flag=money(sp.soFar)+" of "+money(sp.proj)+" · "+(sp.proj>0?Math.round(sp.soFar/sp.proj*100):0)+"%";
     else flag=num(pos)+" mi · "+Math.round(pct)+"%";
     var next=-1,i;for(i=1;i<RT.stops.length;i++){if(RT.CUM[i]>pos+0.5){next=i;break;}}
     var X=function(i){return (i===0?0:RT.CUM[i]/RT.TOTAL*100);},px=function(v){return v.toFixed(2)+"%";};
@@ -1492,7 +1548,7 @@
     function frow(k,l,s,on){return '<div class="frow"><div><div class="fl">'+l+'</div><div class="fs">'+s+'</div></div><button class="sw'+(on?' on':'')+'" type="button" role="switch" aria-checked="'+(on?'true':'false')+'" aria-label="'+esc(l)+'" data-f="'+k+'"><span class="knob"></span></button></div>';}
     var s=stS();
     var back=el("div","modal-back",'<div class="modal fsheet" id="statsFilter"><h2>Filter stats</h2>'+
-      frow("showPlanned","Show planned days","Future days in Miles per day, with ~ estimates",s.showPlanned)+
+      frow("showPlanned","Show planned days","Future days in Miles per day, as estimates",s.showPlanned)+
       frow("sessionsScope","Sessions: all days","Off = the table follows the page scope",s.sessionsScope==="all")+
       frow("costUnit","Spend per mile","Charging spend badge in $/mi instead of $/kWh",s.costUnit==="mi")+
       '<div class="mbtns"><button class="btn go" type="button" data-close="1">Done</button></div></div>'),m=back.firstChild;
@@ -1517,7 +1573,7 @@
     w.addEventListener("change",function(e){var s=e.target.closest("select[data-sel]");if(!s)return;
       var t=T();if(!t)return;
       if(s.getAttribute("data-sel")==="scope"){STV.sel=null;t.stats=t.stats||{};t.stats.chgDay=null;stSet("scope",s.value==="trip"?"trip":+s.value);}
-      else stSet("chgDay",+s.value);});
+      else stSet("chgDay",s.value==="all"?"all":+s.value);});
   })();
 
   /* ---------- live tracking — never blocks the UI ---------- */
@@ -1774,15 +1830,15 @@
     if(over){var o=el("i","over");o.style.left=(t.budget/scale*100)+"%";o.style.width=((t.soFar-t.budget)/scale*100)+"%";bar.appendChild(o);}
     var lg=$("spLegend");lg.innerHTML="";
     LEGEND.forEach(function(L){lg.appendChild(el("div","lg",'<i style="background:'+(L[0]==="gray"?"#8E8E93":CATMAP[L[0]].c)+'"></i>'+L[1]+' <b>'+money(sums[L[0]])+'</b>'));});
-    $("kMile").textContent=t.perMile===null?"–":"$"+t.perMile.toFixed(2);
+    $("kMile").textContent=t.perMile===null?"–":(t.perMile<1?Math.round(t.perMile*100)+"¢":money(t.perMile));   /* whole-dollar row: a sub-dollar rate reads in cents */
     $("kDay").textContent=t.perDay===null?"–":money(t.perDay);
     $("kMiles").textContent=Math.round(t.miles).toLocaleString();
     $("budgetLink").textContent=t.budget?"Budget "+money(t.budget)+" · edit":"Set budget";
     var bo=$("budgetOver");bo.textContent=t.budget?(over?"· "+money(t.soFar-t.budget)+" over":"· "+money(t.budget-t.soFar)+" left"):"";bo.classList.toggle("over",over);
     renderTripProg();   /* seeds and edits land here first; refresh the strip from the same totals */
-    $("spEst").innerHTML="Built from what’s known: "+t.nHotels+" hotel"+(t.nHotels===1?"":"s")+" + pet fees (~"+money(t.plHotelPet)+"), charging estimated from remaining miles at "+
-      (t.hasKwh?"your running <b>$"+t.perKwh.toFixed(2)+"</b>/kWh":"<b>$"+t.perKwh.toFixed(2)+"</b>/kWh (estimate)")+" (~"+money(t.chEst)+"), food at "+
-      (t.foodDay===FOOD_FALLBACK?"an estimated":"your running daily average of")+" ~"+money(t.foodDay)+"/day, tolls + parking + misc (~"+money(t.plOther+t.tail)+"). Updates itself as real entries replace planned ones.";
+    $("spEst").innerHTML="Built from what’s known: "+t.nHotels+" hotel"+(t.nHotels===1?"":"s")+" + pet fees ("+money(t.plHotelPet)+"), charging estimated from remaining miles at "+
+      (t.hasKwh?"your running <b>$"+t.perKwh.toFixed(2)+"</b>/kWh":"<b>$"+t.perKwh.toFixed(2)+"</b>/kWh (estimate)")+" ("+money(t.chEst)+"), food at "+
+      (t.foodDay===FOOD_FALLBACK?"an estimated":"your running daily average of")+" "+money(t.foodDay)+"/day, tolls + parking + misc ("+money(t.plOther+t.tail)+"). Updates itself as real entries replace planned ones.";
   }
   $("budgetLink").addEventListener("click",function(ev){
     ev.preventDefault();var t=T();if(!t)return;
@@ -1835,7 +1891,7 @@
     else sub=(e.cat==="charging"&&e.kwh?e.kwh+" kWh · ":"")+fmtTime(e.ts);
     var row=el("div","sprow"+(e.planned?" plan":"")+(isNew?" new":""),
       '<div class="ic '+c.t+'">'+c.e+'</div><div class="t"><div>'+esc(e.note||c.l)+(e.planned?'<span class="sptag">'+(e.billsLater?"bills later":"planned")+'</span>':'')+'</div><span>'+esc(sub)+'</span></div>'+
-      '<div class="a">'+(e.planned?"~":"")+money2(e.amount)+'</div>');
+      '<div class="a">'+money2(e.amount)+'</div>');
     row.setAttribute("data-id",e.id);
     /* swipe-left or long-press → delete (confirmed); tap a planned row → inline amount edit */
     var sx=null,sy=null,moved=false,lp=null,armed=false;
@@ -1916,7 +1972,7 @@
     if(dropRetiredRows(t))added=true;
     t.charges.forEach(function(c){
       if(c.planned||c.retired||have[c.id]||dis[c.id]||!c.date)return;   /* planned chargers are map-only until logged as a real session; retired ones seed nothing */
-      var e={id:c.id,amount:+c.cost||0,cat:"charging",note:c.name||"Charging",day:dayForDate(parseYMD(c.date)),ts:chgTs(c),planned:false,billsLater:false,auto:true};
+      var e={id:c.id,amount:+c.cost||0,cat:"charging",note:c.name||"Charging",day:dayForDate(parseYMD(c.date)),ts:chgWall(c),planned:false,billsLater:false,auto:true};
       stampStopFromDay(t,e,c.stopId||null);
       if(c.kwh>0)e.kwh=c.kwh;
       t.spend.entries.push(e);added=true;
@@ -1929,7 +1985,7 @@
     t.spend.entries.forEach(function(e){have[e.id]=true;});
     t.expenses.forEach(function(x){
       if(have[x.id]||dis[x.id]||!x.date)return;
-      var xe={id:x.id,amount:+x.amount||0,cat:CATMAP[x.cat]?x.cat:"misc",note:x.note||"",day:dayForDate(parseYMD(x.date)),ts:chgTs(x),planned:false,billsLater:false,auto:true};
+      var xe={id:x.id,amount:+x.amount||0,cat:CATMAP[x.cat]?x.cat:"misc",note:x.note||"",day:dayForDate(parseYMD(x.date)),ts:chgWall(x),planned:false,billsLater:false,auto:true};
       stampStopFromDay(t,xe,x.stopId||null);
       t.spend.entries.push(xe);added=true;
     });
@@ -2173,7 +2229,7 @@
      Pack items are NOT seeded here: sf-move's Pack tab is the Sort catalogue filtered by per-device `disp`,
      so the catalogue below is code and the grouping arrives with an sf-move paste (mergeSfMove). */
   var SF_TRIP_ID="sf-2026";
-  var SF_SEED_REV="sf-move v116 c04cb6c";
+  var SF_SEED_REV="sf-move v118 a0489f4";
   /* the Sort catalogue, ids verbatim — mergeSfMove pairs these with the pasted `disp` to build pack.items */
   var SF_PACK_CATALOGUE=[
       ["g-bag","Gamer bag + current clubs"],["g-shoes","Golf shoes"],["g-gps","Golf GPS / rangefinder"],
@@ -2318,18 +2374,19 @@
       {id:"pl-001",cat:"food",amount:17.83,note:"Rudy's Country Store & Bar-B-Q · Texas BBQ",date:"2026-09-07",time:"16:55"},
       {id:"pl-002",cat:"food",amount:156.44,note:"Prime Steakhouse at Harris Ranch · Steakhouse",date:"2026-09-10",time:"20:44"}
     ];
-    /* seedSpend's surviving planned rows: every hotel row is booked now, so only pet fees, tolls and the shipment stand */
+    /* seedSpend at sf-move a0489f4: the trip is closed out, so the pet fees and tolls seed as ACTUALS at
+       their planned amounts — a fresh install lands exactly where spendCloseoutV1 leaves an established
+       device. Ship Sticks (seed-m0) never happened and does not seed at all. */
     var ts=Date.parse("2026-09-06T00:00:00Z");
-    function P(id,amount,cat,note,day,stopId,billsLater){
-      return{id:id,amount:amount,cat:cat,note:note,day:day,stopId:stopId,ts:ts,planned:true,billsLater:!!billsLater};
+    function P(id,amount,cat,note,day,stopId){
+      return{id:id,amount:amount,cat:cat,note:note,day:day,stopId:stopId,ts:ts,planned:false,billsLater:false};
     }
     var entries=[
       P("seed-p2",75,"kane","Pet fee · Home2 Suites",2,"amarillo"),
       P("seed-p3",50,"kane","Pet fee · Holbrook",3,"holbrook"),
       P("seed-p5",50,"kane","Pet fee · Harris Ranch",5,"coalinga"),
-      P("seed-t1",5,"tolls","Illinois Tollway (I-PASS)",1,"strobert",true),
-      P("seed-t2",12,"tolls","Oklahoma turnpikes (Will Rogers + Turner)",2,"amarillo",true),
-      P("seed-m0",240,"misc","Ship Sticks · 3 pieces",0,null)
+      P("seed-t1",5,"tolls","Illinois Tollway (I-PASS)",1,"strobert"),
+      P("seed-t2",12,"tolls","Oklahoma turnpikes (Will Rogers + Turner)",2,"amarillo")
     ];
     var beforeLeave=[
       {id:"bl-charger",t:"Tesla mobile charger + J1772 adapter in the car"},
@@ -2408,8 +2465,13 @@
     t.charges=(t.charges||[]).filter(function(c){return seedChg[c.id]||!c.planned;});
     t.charges=mergeById(t.charges,seed.charges);           /* locally logged ids the seed lacks are kept */
     t.expenses=mergeById(t.expenses||[],seed.expenses);
+    /* a seed-* row still PLANNED that the seed no longer carries never happened (v118 retired Ship Sticks) —
+       it goes, as sf-move's retireRow does; one confirmed by hand is the user's and stays */
+    var seedRow={};seed.spend.entries.forEach(function(r){seedRow[r.id]=true;});
+    t.spend.entries=t.spend.entries.filter(function(e){return !(isSeedRowId(e.id)&&!seedRow[e.id]&&e.planned);});
     var rowAt={};t.spend.entries.forEach(function(e,k){rowAt[e.id]=k;});
     seed.spend.entries.forEach(function(r){
+      if(t.spend.dismissed[r.id])return;                   /* dismissed on the phone: never re-seeded */
       var k=rowAt[r.id];
       if(k===undefined){t.spend.entries.push(JSON.parse(JSON.stringify(r)));return;}
       if(t.spend.entries[k].planned===false)return;         /* confirmed by hand: the seed never overwrites it */
@@ -2587,6 +2649,34 @@
   /* A planned row never outlives its actual: once a day has a real hotel (or pet-fee) row, the
      estimate for that day is gone, whatever its id. Scanning by day + category rather than by id is
      what keeps a renamed or re-issued seed row from double-counting. Idempotent. */
+  function isSeedRowId(id){return /^seed-/.test(String(id||""));}
+  /* Seed-row dismissal. A seed-* row the paste no longer vouches for is gone for good: it lands in
+     spend.dismissed, leaves entries, and applySeed never brings it back. Three shapes, all honoured —
+     (a) absent from the pasted entries (sf-move's retireRow deletes outright, so this is what a real
+     export carries today), (b) present with retired:true, (c) named in a pasted retired / removed /
+     dismissed map or array. Only when the paste itself has seeded (spend.seededV1), so a partial or
+     hand-built paste cannot wipe rows it never knew about. Returns the ids it dismissed. */
+  function listIds(v){
+    if(Array.isArray(v))return v.map(String);
+    if(v&&typeof v==="object")return Object.keys(v).filter(function(k){return v[k];});
+    return [];
+  }
+  function dismissSeedRows(t,ps){
+    if(!ps||!ps.seededV1)return [];
+    var pasted={},named={};
+    (ps.entries||[]).forEach(function(e){if(e&&e.id)pasted[e.id]=e;});
+    ["retired","removed","dismissed"].forEach(function(k){listIds(ps[k]).forEach(function(id){named[id]=true;});});
+    var gone=[];
+    t.spend.entries.forEach(function(e){
+      if(!isSeedRowId(e.id))return;
+      var p=pasted[e.id];
+      if(!p||p.retired||named[e.id])gone.push(e.id);
+    });
+    Object.keys(named).forEach(function(id){if(isSeedRowId(id)&&gone.indexOf(id)<0)gone.push(id);});
+    gone.forEach(function(id){t.spend.dismissed[id]=true;});
+    if(gone.length)t.spend.entries=t.spend.entries.filter(function(e){return gone.indexOf(e.id)<0;});
+    return gone;
+  }
   var PLANNED_SWEEP=["hotel","kane"];
   function dropStalePlanned(t){
     var actual={};
@@ -2625,6 +2715,7 @@
     (ps.entries||[]).forEach(function(e){
       if(!e||!e.id)return;
       if(dis[e.id])return;                                   /* dismissed rows land in spend.dismissed, not in entries */
+      if(isSeedRowId(e.id)&&t.spend.dismissed[e.id])return;   /* a dismissed seed row stays dismissed */
       var row=JSON.parse(JSON.stringify(e));
       if(typeof row.day==="number")stampStopFromDay(t,row,row.stopId||null);   /* day is authoritative, the pasted stopId is not */
       if(byId[row.id]!==undefined)t.spend.entries[byId[row.id]]=row;   /* same id → replace: confirmed amounts + planned:false arrive here */
@@ -2636,6 +2727,7 @@
       if(byId[k]!==undefined){t.spend.entries=t.spend.entries.filter(function(x){return x.id!==k;});byId={};t.spend.entries.forEach(function(x,i){byId[x.id]=i;});}
     });
     dropRetiredRows(t);   /* after the pasted rows land, or a retired charge's row rides back in */
+    n.dismissed=dismissSeedRows(t,ps);
     dropStalePlanned(t);
     n.items=packFromDisp(t,o.disp,o.removed);
     if(+ps.budget>0){t.spend.budget=+ps.budget;n.budget=+ps.budget;}

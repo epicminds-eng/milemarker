@@ -17,6 +17,7 @@
     "r-skates": true
   },
   "customTasks": {},
+  "ref": {},
   "trip": {
     "arrived": {
       "strobert": true,
@@ -83,12 +84,12 @@
       "spend.day2HotelV1": 0,
       "spend.seedH3RetireV1": 0,
       "spend.pl002CostFixV1": 0,
+      "spend.spendCloseoutV1": 0,
       "spend.entries.seed-p2": 0,
       "spend.entries.seed-p3": 0,
       "spend.entries.seed-p5": 0,
       "spend.entries.seed-t1": 0,
       "spend.entries.seed-t2": 0,
-      "spend.entries.seed-m0": 0,
       "spend.seededV1": 0,
       "spend.entries.chg-001": 0,
       "spend.entries.chg-002": 0,
@@ -133,14 +134,15 @@
       "spend.entries.exp-009": 0,
       "spend.entries.pl-001": 0,
       "spend.entries.pl-002": 0,
-      "disp.g-bag": 1789809118970,
-      "disp.r-skates": 1789809119053,
-      "disp.g-launch": 1789809119153,
-      "disp.wo-kb": 1789809119252,
-      "removed.w-printer": 1789809119353,
-      "packed.g-bag": 1789809120354,
-      "packed.r-skates": 1789809120420,
-      "spend.budget": 1789809121936
+      "disp.g-bag": 1790256636634,
+      "disp.r-skates": 1790256636774,
+      "disp.g-launch": 1790256636934,
+      "disp.wo-kb": 1790256637066,
+      "removed.w-printer": 1790256637266,
+      "packed.g-bag": 1790256637800,
+      "packed.r-skates": 1790256637882,
+      "spend.budget": 1790256639482,
+      "spend.entries.e1790256640532": 1790256640532
     },
     "stamped": true
   },
@@ -153,8 +155,8 @@
         "note": "Pet fee · Home2 Suites",
         "day": 2,
         "stopId": "amarillo",
-        "ts": 1789809118778,
-        "planned": true,
+        "ts": 1790256636339,
+        "planned": false,
         "billsLater": false
       },
       {
@@ -164,8 +166,8 @@
         "note": "Pet fee · Holbrook",
         "day": 3,
         "stopId": "holbrook",
-        "ts": 1789809118778,
-        "planned": true,
+        "ts": 1790256636339,
+        "planned": false,
         "billsLater": false
       },
       {
@@ -175,8 +177,8 @@
         "note": "Pet fee · Harris Ranch",
         "day": 5,
         "stopId": "coalinga",
-        "ts": 1789809118778,
-        "planned": true,
+        "ts": 1790256636339,
+        "planned": false,
         "billsLater": false
       },
       {
@@ -186,9 +188,9 @@
         "note": "Illinois Tollway (I-PASS)",
         "day": 1,
         "stopId": "strobert",
-        "ts": 1789809118778,
-        "planned": true,
-        "billsLater": true
+        "ts": 1790256636339,
+        "planned": false,
+        "billsLater": false
       },
       {
         "id": "seed-t2",
@@ -197,19 +199,8 @@
         "note": "Oklahoma turnpikes (Will Rogers + Turner)",
         "day": 2,
         "stopId": "amarillo",
-        "ts": 1789809118778,
-        "planned": true,
-        "billsLater": true
-      },
-      {
-        "id": "seed-m0",
-        "amount": 240,
-        "cat": "misc",
-        "note": "Ship Sticks · 3 pieces",
-        "day": 0,
-        "stopId": null,
-        "ts": 1789809118778,
-        "planned": true,
+        "ts": 1790256636339,
+        "planned": false,
         "billsLater": false
       },
       {
@@ -716,6 +707,17 @@
         "ts": 1789073040000,
         "planned": false,
         "billsLater": false
+      },
+      {
+        "id": "e1790256640532",
+        "amount": 18.72,
+        "cat": "groceries",
+        "note": "Water",
+        "day": 6,
+        "stopId": "sf",
+        "ts": 1790256640532,
+        "planned": false,
+        "billsLater": false
       }
     ],
     "hotel5BookedV1": true,
@@ -728,7 +730,8 @@
     "seededV1": true,
     "nowDay": 6,
     "openDay": 6,
-    "budget": 1500
+    "budget": 1500,
+    "spendCloseoutV1": true
   },
   "stats": {},
   "ui": {

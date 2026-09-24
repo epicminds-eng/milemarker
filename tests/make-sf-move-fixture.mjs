@@ -7,7 +7,11 @@
    packable until something is tagged) and removes one, packs the two car items, taps Arrived on
    Amarillo, sets a budget of 1500, and writes out the raw localStorage object sfMoveApp_v1 — exactly
    what sf-move's Export produces. The sell and removed items are what proves Mile Marker's import
-   drops them instead of packing them. */
+   drops them instead of packing them.
+   From sf-move a0489f4 (v118) it also carries the spend close-out: a hand row "Watter" $18.72 is added
+   through the real Add expense sheet, the store is put back the way a pre-v118 phone had it (the five
+   pet-fee/toll rows planned, Ship Sticks planned, no spendCloseoutV1 flag) and reloaded, so sf-move's
+   OWN spendCloseoutV1 runs over it: five actuals, seed-m0 gone, "Watter" → "Water". */
 import { chromium } from "playwright";
 import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
@@ -97,6 +101,40 @@ await page.locator("#budgetLink").click();
 await page.locator("#budgetRow .sp-edit input").fill("1500");
 await page.locator("#budgetRow .sp-edit .btn").click();
 
+/* 5. the hand row, through the real Add expense sheet */
+await page.locator(".spadd[data-add]").first().click();
+await page.waitForSelector(".sheet .amt");
+await page.locator(".sheet .amt").fill("18.72");
+await page.locator(".sheet .note").fill("Watter");
+await page.locator('.sheet [data-cat="groceries"]').click();
+await page.locator(".sheet [data-save]").click();
+await page.waitForTimeout(300);
+
+/* 6. put the store back the way a pre-v118 phone had it, then let sf-move's own close-out run */
+const PRE_V118 = {   /* sf-move c04cb6c seedSpend, verbatim */
+  "seed-p2": [75, false], "seed-p3": [50, false], "seed-p5": [50, false],
+  "seed-t1": [5, true], "seed-t2": [12, true] };
+await page.evaluate(PRE => {
+  const s = JSON.parse(localStorage.getItem("sfMoveApp_v1"));
+  s.spend.entries.forEach(e => { if (PRE[e.id]) { e.planned = true; e.billsLater = PRE[e.id][1]; } });
+  if (!s.spend.entries.some(e => e.id === "seed-m0"))
+    s.spend.entries.push({ id: "seed-m0", amount: 240, cat: "misc", note: "Ship Sticks · 3 pieces", day: 0, stopId: null,
+      ts: Date.now(), planned: true, billsLater: false });
+  delete s.spend.spendCloseoutV1;
+  localStorage.setItem("sfMoveApp_v1", JSON.stringify(s));
+}, PRE_V118);
+await page.reload();
+await page.waitForTimeout(900);
+const closed = await page.evaluate(() => {
+  const s = JSON.parse(localStorage.getItem("sfMoveApp_v1")).spend, e = s.entries;
+  return { flag: !!s.spendCloseoutV1,
+    planned: e.filter(x => /^seed-/.test(x.id) && x.planned).map(x => x.id),
+    m0: e.some(x => x.id === "seed-m0"),
+    water: e.filter(x => x.amount === 18.72).map(x => x.note) };
+});
+if (!closed.flag || closed.planned.length || closed.m0 || closed.water.join() !== "Water")
+  throw new Error(`spendCloseoutV1 did not close the store out: ${JSON.stringify(closed)}`);
+
 const raw = await page.evaluate(() => localStorage.getItem("sfMoveApp_v1"));
 await browser.close();
 
@@ -109,3 +147,5 @@ console.log(`  packed: ${Object.keys(obj.packed).filter(k => obj.packed[k]).join
 console.log(`  disp: ${Object.entries(obj.disp).map(([k, v]) => `${k}=${v}`).join(", ")}`);
 console.log(`  removed: ${Object.keys(obj.removed).join(", ")}`);
 console.log(`  budget: ${obj.spend.budget} · entries: ${obj.spend.entries.length}`);
+console.log(`  close-out: ${obj.spend.spendCloseoutV1} · seed rows ${obj.spend.entries.filter(e => /^seed-/.test(e.id)).map(e => e.id + (e.planned ? "(planned)" : "")).join(",")}`);
+console.log(`  hand row: ${JSON.stringify(obj.spend.entries.filter(e => e.amount === 18.72).map(e => ({ id: e.id, note: e.note })))}`);

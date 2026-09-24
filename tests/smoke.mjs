@@ -282,7 +282,7 @@ const run = async () => {
         if (l && l.miles > bm && l.miles <= RT.TOTAL) { bm = l.miles; best = c; } });
       return best ? best.id + "|" + best.name : "none"; })()
   }));
-  eq("seed revision recorded", sf.rev, "sf-move v116 c04cb6c");
+  eq("seed revision recorded", sf.rev, "sf-move v118 a0489f4");
   eq("trip carries the seed revision", sf.seedRev, sf.rev);
   eq("TOTAL == the sum of IMPORT_SF's legs", sf.total, sf.seedTotal);
   eq("6 days", sf.days, 6);
@@ -352,13 +352,28 @@ const run = async () => {
     new RegExp(`${sf.real}\\s+stops`).test(sfChg) && !/planned/.test(sfChg), sfChg.replace(/\n/g, " | "));
   await page.locator("#nav-spend").click();
   await page.waitForSelector("#page-spend.active");
+  /* Day 1 = its charges + its receipts + its seeded actuals, every figure read from IMPORT_SF — since v118
+     closed the trip out, seed-t1 (the $5 Illinois Tollway) is an actual, so Day 1 is no longer $302 */
   const day1 = await page.locator('#spendDays .spday[data-day="1"] .dayh b').innerText();
-  eq("Day 1 spend $302", day1.trim(), "$302");
-  eq("Day 1 actuals sum to 301.56, rendered $302",
-    (await page.evaluate(() => {
-      let v = 0; T().spend.entries.forEach(e => { if (!e.planned && e.day === 1) v += e.amount; });
-      return Math.round(v * 100) / 100;
-    })).toFixed(2), "301.56");
+  const d1 = await page.evaluate(() => {
+    const seed = IMPORT_SF(), t = T();
+    let want = 0, have = 0;
+    seed.charges.forEach(c => { if (!c.planned && !c.retired && dayForDate(parseYMD(c.date)) === 1) want += +c.cost || 0; });
+    seed.expenses.forEach(x => { if (dayForDate(parseYMD(x.date)) === 1) want += +x.amount || 0; });
+    seed.spend.entries.forEach(e => { if (!e.planned && e.day === 1) want += e.amount; });
+    t.spend.entries.forEach(e => { if (!e.planned && e.day === 1) have += e.amount; });
+    return { want: Math.round(want * 100) / 100, have: Math.round(have * 100) / 100, money: money(want) };
+  });
+  eq("Day 1 actuals == IMPORT_SF's Day 1 charges + receipts + seeded actuals", d1.have, d1.want);
+  eq("Day 1 header renders that sum in whole dollars", day1.trim(), d1.money);
+  /* v118 retired Ship Sticks: nothing seeds seed-m0, and Pre-trip (Day 0) carries nothing it would have */
+  const m0 = await page.evaluate(() => ({
+    anywhere: JSON.stringify(state).indexOf("seed-m0") >= 0,
+    day0: T().spend.entries.filter(e => e.day === 0).reduce((a, e) => a + e.amount, 0),
+    day0Rows: T().spend.entries.filter(e => e.day === 0).map(e => e.id) }));
+  ok("no seed-m0 row anywhere on a fresh install", !m0.anywhere);
+  eq("Day 0 total excludes Ship Sticks", m0.day0, m0.day0Rows.length ? m0.day0 : 0);
+  ok("Day 0 has no $240 row", !m0.day0Rows.length || m0.day0 !== 240, JSON.stringify(m0));
   await page.locator("#nav-pack").click();
   await page.waitForSelector("#page-pack.active");
   const packGroups = await page.evaluate(() => [...document.querySelectorAll("#packGroups .sec-head .t")].map(e => e.textContent));
@@ -385,7 +400,10 @@ const run = async () => {
   const sfExport = readFileSync(SF_EXPORT, "utf8");
   const fixture = JSON.parse(sfExport);
   const INJ_SWEPT = ["inj-h3", "inj-p3"];            /* planned, on a day with an actual of the same kind */
-  const INJ_SURVIVORS = ["inj-keep", "inj-p3-paid"]; /* actuals — the sweep never touches them */
+  /* actuals the sweep never touches, plus a planned pet fee on Day 4 — Mom's, where no pet fee was ever
+     paid — which must survive because nothing real stands beside it. Since v118 closed the trip out the
+     fixture itself has no planned rows left, so this planted one is what keeps the leave-alone branch tested. */
+  const INJ_SURVIVORS = ["inj-keep", "inj-p3-paid", "inj-p4"];
   /* planting a real Day 3 pet fee also retires the fixture's own planned one; work out which of the
      fixture's rows the sweep is entitled to take rather than guessing at a total */
   const INJ_ACTUALS = [["hotel", 3], ["kane", 3]];
@@ -403,7 +421,8 @@ const run = async () => {
       { id: "inj-keep", amount: 231.21, cat: "hotel", note: "Arizonian, confirmed by hand", day: 3, stopId: "holbrook", ts: 1, planned: false, auto: false, billsLater: false },
       /* Day 3 has a real hotel (exp-007) but no real pet fee, so plant one — otherwise the pet-fee
          branch of the sweep has nothing to sweep against and would never be exercised */
-      { id: "inj-p3-paid", amount: 50, cat: "kane", note: "Pet fee · Holbrook, paid", day: 3, stopId: "holbrook", ts: 1, planned: false, auto: false, billsLater: false });
+      { id: "inj-p3-paid", amount: 50, cat: "kane", note: "Pet fee · Holbrook, paid", day: 3, stopId: "holbrook", ts: 1, planned: false, auto: false, billsLater: false },
+      { id: "inj-p4", amount: 20, cat: "kane", note: "Pet fee · Mom's (planned)", day: 4, stopId: "moms", ts: 1, planned: true, billsLater: false });
     save(state);
   });
   await page.locator("#dataPaste").fill(sfExport);
@@ -439,8 +458,8 @@ const run = async () => {
   eq("spend rows = fixture entries + planted survivors − what the sweeps take",
     merged.rows,
     fixture.spend.entries.length + INJ_SURVIVORS.length - fixtureSwept.length - fixtureRetired.length);
-  ok("planting a real Day 3 pet fee retired the fixture's planned one",
-    fixtureSwept.includes("seed-p3"), fixtureSwept.join(",") || "(nothing swept)");
+  const sweptGone = await page.evaluate(ids => ids.filter(id => state.trips["sf-2026"].spend.entries.some(e => e.id === id)), fixtureSwept);
+  eq("every fixture row the sweep was entitled to take is gone", sweptGone.join(","), "");
   eq("merged onto sf-2026 only", merged.onlyTrip, "sf-2026");
 
   /* the day decides the stop: sf-move stamps Buckeye/Quartzsite/Indio with nearestStop() → "moms",
@@ -496,7 +515,7 @@ const run = async () => {
   eq("the injected Day 3 planned rows are gone", stale.injected.join(","), "");
   ok("the hand-confirmed Day 3 rows survive", stale.keptConfirmed, "a planted actual went missing");
   eq("no planned row survives on a day that has an actual of the same kind", stale.bad.join(","), "");
-  ok("a pet fee with no actual is left alone", stale.plannedKane.length > 0, JSON.stringify(stale.plannedKane));
+  ok("a planned pet fee on a day with no real one is left alone", stale.plannedKane.includes("inj-p4@4"), JSON.stringify(stale.plannedKane));
 
   await page.locator(".trcard").first().click();
   await page.waitForSelector("#page-trip.active");
@@ -513,6 +532,86 @@ const run = async () => {
   const after2 = await page.evaluate(() => JSON.stringify(state.trips["sf-2026"]));
   ok("a second paste changes nothing", before2 === after2,
     before2 === after2 ? "" : "trip JSON differs after the second import");
+
+  /* ---- (g) cont. — same-id replace carries the close-out, and the seed-row dismissal rule ---- */
+  const pasteJSON = async obj => {
+    await page.locator("#dataPaste").fill(JSON.stringify(obj));
+    await page.locator("#dataImport").click();
+    await page.waitForFunction(() => /merged/.test(document.getElementById("dataStatus").textContent));
+  };
+  const trip = () => page.evaluate(() => state.trips["sf-2026"]);
+  const handRow = fixture.spend.entries.find(e => e.amount === 18.72);
+  ok("the fixture carries the renamed hand row", !!handRow && handRow.note === "Water", JSON.stringify(handRow));
+  ok("the fixture carries the close-out flag", fixture.spend.spendCloseoutV1 === true);
+  /* a phone BEFORE the close-out: the five rows planned, "Watter", Ship Sticks planned */
+  const pre = JSON.parse(sfExport);
+  const PRE_BILLS = { "seed-t1": true, "seed-t2": true };
+  pre.spend.entries.forEach(e => {
+    if (/^seed-/.test(e.id)) { e.planned = true; e.billsLater = !!PRE_BILLS[e.id]; }
+    if (e.id === handRow.id) e.note = "Watter";
+  });
+  pre.spend.entries.push({ id: "seed-m0", amount: 240, cat: "misc", note: "Ship Sticks · 3 pieces", day: 0, stopId: null, ts: 1, planned: true, billsLater: false });
+  delete pre.spend.spendCloseoutV1;
+  await pasteJSON(pre);
+  let tr = await trip();
+  eq("before the close-out the hand row reads Watter", tr.spend.entries.find(e => e.id === handRow.id).note, "Watter");
+  eq("before the close-out seed-p2 is planned", tr.spend.entries.find(e => e.id === "seed-p2").planned, true);
+  /* now the real, closed-out export: same ids, so the replace must carry the change */
+  await pasteJSON(fixture);
+  tr = await trip();
+  const p2 = tr.spend.entries.find(e => e.id === "seed-p2"), hr = tr.spend.entries.find(e => e.id === handRow.id);
+  eq("same-id replace carries planned → actual", p2.planned, false);
+  eq("same-id replace carries the rename, under the original id", hr && hr.note, "Water");
+  ok("Ship Sticks, absent from the closed-out paste, is dismissed — shape (a)",
+    !tr.spend.entries.some(e => e.id === "seed-m0") && tr.spend.dismissed["seed-m0"] === true);
+
+  /* the three shapes, built in memory from the regenerated fixture */
+  const shaped = JSON.parse(sfExport);
+  shaped.spend.entries = shaped.spend.entries.filter(e => e.id !== "seed-t1");          /* (a) absent */
+  shaped.spend.entries.find(e => e.id === "seed-t2").retired = true;                  /* (b) retired:true */
+  shaped.spend.retired = ["seed-p3"];                                                 /* (c) named */
+  await pasteJSON(shaped);
+  tr = await trip();
+  const ids = tr.spend.entries.map(e => e.id);
+  ["seed-t1", "seed-t2", "seed-p3"].forEach(id => {
+    ok(`${id} is gone from entries`, !ids.includes(id));
+    eq(`${id} is in spend.dismissed`, tr.spend.dismissed[id], true);
+  });
+  const keep = id => tr.spend.entries.find(e => e.id === id);
+  ok("seed-p2 stays, an actual at 75", keep("seed-p2") && keep("seed-p2").planned === false && keep("seed-p2").amount === 75,
+    JSON.stringify(keep("seed-p2")));
+  ok("seed-p5 stays, an actual at 50", keep("seed-p5") && keep("seed-p5").planned === false && keep("seed-p5").amount === 50,
+    JSON.stringify(keep("seed-p5")));
+  ok("the Water row stays under its original id at 18.72",
+    keep(handRow.id) && keep(handRow.id).note === "Water" && keep(handRow.id).amount === 18.72, JSON.stringify(keep(handRow.id)));
+  /* the kept seed rows render as ordinary actuals — no planned tag, the amount shown plain */
+  await page.locator(".trcard").first().click();
+  await page.waitForSelector("#page-trip.active");
+  await page.locator("#nav-spend").click();
+  await page.waitForSelector("#page-spend.active");
+  const cap = await page.evaluate(() => ["seed-p2", "seed-p5"].map(id => {
+    const r = document.querySelector(`#spendDays .sprow[data-id="${id}"]`);
+    return r ? { id, text: r.innerText.replace(/\n/g, " | "), plan: r.classList.contains("plan") } : { id, missing: true };
+  }));
+  cap.forEach(c => ok(`${c.id} renders as an actual (${c.text || "missing"})`, !c.missing && !c.plan && !/planned/.test(c.text)));
+  await page.locator("#nav-back").click();
+  await page.waitForSelector("#page-trips.active");
+  const shapedBefore = await page.evaluate(() => JSON.stringify(state.trips["sf-2026"]));
+  await pasteJSON(shaped);
+  const shapedAfter = await page.evaluate(() => JSON.stringify(state.trips["sf-2026"]));
+  ok("pasting the three shapes again changes nothing", shapedBefore === shapedAfter);
+  /* and a seed refresh never brings a dismissed row back */
+  await page.evaluate(() => { state.trips["sf-2026"].seedRev = "an older build"; save(state); });
+  await page.reload();
+  await page.waitForSelector("#page-trip.active, #page-trips.active");
+  const reseeded = await page.evaluate(() => {
+    const t = state.trips["sf-2026"];
+    return { rev: t.seedRev, back: ["seed-t1", "seed-t2", "seed-p3", "seed-m0"].filter(id => t.spend.entries.some(e => e.id === id)) };
+  });
+  eq("the refresh ran", reseeded.rev, "sf-move v118 a0489f4");
+  eq("no dismissed seed row came back with it", reseeded.back.join(","), "");
+  eq("the map form of a named list is read too", await page.evaluate(() => listIds({ a: true, b: false, c: 1 }).join(",")), "a,c");
+  if (await page.locator("#page-trip.active").count()) { await page.locator("#nav-back").click(); await page.waitForSelector("#page-trips.active"); }
   ok("no console errors importing sf-move data", errors.length === 0, errors.join(" | "));
 
   /* ---- (h) Mile Marker export → import round-trip ---- */
@@ -570,13 +669,14 @@ const run = async () => {
       oasis: t.charges.some(c => c.id === "chg-oasis"),
       seedCharges: IMPORT_SF().charges.length,
       p2: t.spend.entries.find(e => e.id === "seed-p2"),
+      m0: t.spend.entries.some(e => e.id === "seed-m0"),
       p3: t.spend.entries.find(e => e.id === "seed-p3"),
       strip: [...document.querySelectorAll("#tripProg .tps")].length,
       cards: [...document.querySelectorAll("#tripStops .card[data-stop]")].map(c => c.getAttribute("data-stop")).join(","),
       nodes: document.querySelectorAll("#nodeG circle.nd").length
     };
   });
-  eq("seedRev brought forward", ref.seedRev, "sf-move v116 c04cb6c");
+  eq("seedRev brought forward", ref.seedRev, "sf-move v118 a0489f4");
   eq("abq + la retired", ref.retired, "abq,la");
   ok("retired stops are kept in the data", /abq/.test(ref.kept) && /la/.test(ref.kept), ref.kept);
   eq("route skips the retired stops", ref.route, "start,strobert,amarillo,holbrook,moms,coalinga,sf");
@@ -588,8 +688,10 @@ const run = async () => {
   eq("no duplicate charge ids", ref.dupIds, 0);
   ok("a locally logged charge is kept", ref.localCharge);
   ok("the fulfilled planned charger is gone", !ref.oasis, "chg-oasis survived the refresh");
-  ok("planned row refreshed to the v107 amount", ref.p2 && ref.p2.amount === 75 && ref.p2.planned === true,
+  /* v118 seeds the pet fee as an actual: the old planned row is replaced wholesale by the seed's */
+  ok("planned row refreshed to the seed's actual", ref.p2 && ref.p2.amount === 75 && ref.p2.planned === false,
     JSON.stringify(ref.p2));
+  ok("a planned seed row the seed no longer carries is gone (Ship Sticks)", !ref.m0, "seed-m0 survived the refresh");
   ok("a hand-confirmed row is left alone", ref.p3 && ref.p3.planned === false && ref.p3.amount === 42,
     JSON.stringify(ref.p3));
   const boot1 = await page.evaluate(() => JSON.stringify(state.trips["sf-2026"]));
@@ -648,18 +750,62 @@ const run = async () => {
   ok("no console errors on the disp import", errors.length === 0, errors.join(" | "));
 
   /* ---- screenshots: Trips, Trip and Pack at 390 and at 1194 ---- */
-  console.log("\nscreenshots at 390 and 1194");
+  console.log("\n390 and 1194: tabs, sheets, gate 2 (no tildes) and the stat rows (port #7a)");
   await page.waitForTimeout(2800);   /* let the import toast expire so it is not in the shots */
+  /* gate 2: no "~" anywhere a user can read it */
+  const noTilde = async label => {
+    const txt = await page.evaluate(() => document.body.innerText);
+    const i = txt.indexOf("~");
+    ok(`no "~" rendered — ${label}`, i < 0, i < 0 ? "" : JSON.stringify(txt.slice(Math.max(0, i - 40), i + 40)));
+  };
+  /* port #7a: every visible stat row — equal columns (±1px), nothing clipped, no ellipsis, whole dollars */
+  const statRowsOk = async label => {
+    const rows = await page.evaluate(() => [...document.querySelectorAll(".statrow")].filter(r => r.offsetParent).map(r => {
+      const cells = [...r.children];
+      return { id: r.className, widths: cells.map(c => c.getBoundingClientRect().width),
+        clipped: cells.filter(c => c.scrollWidth > c.clientWidth + 1 || [...c.querySelectorAll("*")].some(k => k.scrollWidth > k.clientWidth + 1)).length,
+        cs: cells.map(c => getComputedStyle(c).justifyContent), text: r.innerText };
+    }));
+    ok(`${label}: at least one stat row is on screen`, rows.length > 0);
+    rows.forEach(r => {
+      const spread = Math.max(...r.widths) - Math.min(...r.widths);
+      ok(`${label} · ${r.id}: ${r.widths.length} equal columns (spread ${spread.toFixed(2)}px)`, spread <= 1);
+      eq(`${label} · ${r.id}: nothing overflows its cell`, r.clipped, 0);
+      ok(`${label} · ${r.id}: no ellipsis`, !/…/.test(r.text), r.text);
+      ok(`${label} · ${r.id}: cells sit on the bottom`, r.cs.every(v => v === "flex-end"), r.cs.join(","));
+      const cents = (r.text.match(/\$[\d,]+\.\d+/g) || []);
+      eq(`${label} · ${r.id}: every $ figure is whole dollars`, cents.join(" "), "");
+    });
+  };
   for (const w of [390, 1194]) {
     await page.setViewportSize({ width: w, height: w === 390 ? 844 : 834 });
     await page.locator("#nav-back").click();
     await page.waitForSelector("#page-trips.active");
     await page.waitForTimeout(300);
     await shot(page, `w${w}-1-trips.png`);
+    await noTilde(`${w} Trips`);
+    /* the sheets the suite opens: New trip (Basics) and the App-data export */
+    await page.locator("#newTripBtn").click();
+    await page.waitForSelector("#basicsSheet");
+    await noTilde(`${w} New trip sheet`);
+    await page.locator("#btCancel").click();
+    await page.locator("#dataExport").click();
+    await page.waitForSelector(".modal-back");
+    await noTilde(`${w} App data export`);
+    await page.locator(".modal-back #dmDone").click();
     await page.locator(".trcard").first().click();
     await page.waitForSelector("#page-trip.active");
     await page.waitForTimeout(600);
     await shot(page, `w${w}-2-trip.png`);
+    await noTilde(`${w} Trip`);
+    await statRowsOk(`${w} Trip`);
+    await page.evaluate(() => document.querySelector("#tripStats").scrollIntoView({ block: "start" }));
+    await page.waitForTimeout(250);
+    await shot(page, `w${w}-2d-trip-stats.png`);
+    await page.locator('#tripStats [data-act="filter"]').click();
+    await page.waitForSelector("#statsFilter");
+    await noTilde(`${w} Stats filter sheet`);
+    await page.locator("#statsFilter [data-close]").click();
     /* charging row open: the sessions are grouped by the stop that closes their day.
        The app scrolls inside #scroll, so fullPage would only ever capture one viewport. */
     await page.evaluate(() => { if (!document.getElementById("chgRow").classList.contains("open")) document.querySelector("#chgRow .chgh").click(); });
@@ -680,7 +826,27 @@ const run = async () => {
     await page.waitForSelector("#page-pack.active");
     await page.waitForTimeout(400);
     await shot(page, `w${w}-3-pack.png`);
+    await noTilde(`${w} Pack`);
+    await page.locator("#nav-spend").click();
+    await page.waitForSelector("#page-spend.active");
+    await page.waitForTimeout(400);
+    await shot(page, `w${w}-4-spend.png`);
+    await noTilde(`${w} Spend`);
+    await statRowsOk(`${w} Spend`);
+    for (const d of [0, 2]) {
+      await page.evaluate(d => { const c = document.querySelector(`#spendDays .spday[data-day="${d}"]`); if (c) c.scrollIntoView({ block: "start" }); }, d);
+      await page.waitForTimeout(200);
+      await shot(page, `w${w}-4-spend-day${d}.png`);
+    }
+    await page.locator("#importLink").click();
+    await page.waitForSelector(".modal-back textarea.imp");
+    await noTilde(`${w} Import transactions sheet`);
+    await page.locator("#impClose").click();
   }
+  /* the words themselves: no seed note and no fixture note carries a tilde either */
+  const seedNotes = await page.evaluate(() => JSON.stringify(IMPORT_SF()));
+  ok("no tilde in any IMPORT_SF string", seedNotes.indexOf("~") < 0);
+  ok("no tilde in any fixture string", sfExport.indexOf("~") < 0);
   ok("no console errors at either width", errors.length === 0, errors.join(" | "));
 
   /* ---- (k) retired charges ---- */
@@ -791,6 +957,129 @@ const run = async () => {
   const hm6 = await page.evaluate(() => hm(null));
   eq("an unknown duration renders as a dash", hm6, "—");
   ok("no console errors on the undriven-day check", errors.length === 0, errors.join(" | "));
+
+  /* ---- (m) time-zone-aware timing — port #1, sf-move a750b1a, test/trip-time.test.js at a0489f4 ----
+     Every stamp is a zone-less wall clock, so a span is only right if each end is read in the zone it
+     was taken in. These drive the app's OWN dayStats(); the stamps and the expected strings are sf-move's
+     test's, and the expected spans come from its `naive` formula, never retyped. Run under a foreign
+     TZ (TZ=Pacific/Auckland npm test) and every number here must still hold — that is the falsifier
+     for "never the phone's zone". */
+  console.log(`\n(m) time zones (device TZ ${Intl.DateTimeFormat().resolvedOptions().timeZone})`);
+  errors.length = 0;
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  const naive = (a, b) => (Date.parse(b + "Z") - Date.parse(a + "Z")) / 60000;
+  const hmS = m => Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m";
+  const zones = await page.evaluate(() => T().stops.map(s => s.id + "=" + (s.tz || "?")));
+  ok(`every seeded stop carries an IANA zone (${zones.join(" ")})`, zones.every(z => !/=\?$/.test(z)));
+  const tzDay = (stopId, d, rolled, arrived) => page.evaluate(({ stopId, d, rolled, arrived }) => {
+    const t = T(); t.log.rolled[stopId] = rolled; t.log.arrivedAt[stopId] = arrived; t.log.arrived[stopId] = true;
+    const r = dayStats(d);
+    return { d2d: r.d2d, rolledTz: r.rolledTz, tz: r.tz,
+      shown: (r.rolled ? fmtTime(r.rolled) : "") + " → " + (r.arrived ? fmtTime(r.arrived) : "") };
+  }, { stopId, d, rolled, arrived });
+  {   /* Day 3: Amarillo (CDT, UTC-5) → Holbrook (MST, UTC-7) — crosses a zone */
+    const R = "2026-09-08T08:00", A = "2026-09-08T16:30", r = await tzDay("holbrook", 3, R, A);
+    ok(`Day 3 reads each stamp in its own zone (${r.rolledTz} → ${r.tz})`, r.rolledTz === "America/Chicago" && r.tz === "America/Phoenix");
+    eq(`Day 3 door to door = the wall clocks' ${hmS(naive(R, A))} + the two hours the zone change adds`, r.d2d, naive(R, A) + 120);
+    eq("Day 3 door to door reads 10h 30m", hmS(r.d2d), "10h 30m");
+    eq("Day 3 still SHOWS the stamps as written", r.shown, "8:00 AM → 4:30 PM");
+  }
+  {   /* Day 5: Mom's (MST) → Coalinga (PDT) — same offset in September, so no shift */
+    const R = "2026-09-10T07:15", A = "2026-09-10T14:45", r = await tzDay("coalinga", 5, R, A);
+    ok(`Day 5 crosses Phoenix → Los Angeles (${r.rolledTz} → ${r.tz})`, r.rolledTz === "America/Phoenix" && r.tz === "America/Los_Angeles");
+    eq("Day 5 door to door is unshifted — Arizona keeps no DST", r.d2d, naive(R, A));
+    eq("Day 5 still SHOWS the stamps as written", r.shown, "7:15 AM → 2:45 PM");
+  }
+  {   /* the primitive itself */
+    const z = await page.evaluate(() => {
+      const C = id => T().charges.filter(c => c.id === id)[0];
+      return { chi: zonedToEpoch("2026-09-08T08:00", "America/Chicago"), phx: zonedToEpoch("2026-09-08T08:00", "America/Phoenix"),
+        den: zonedToEpoch("2026-09-08T08:00", "America/Denver"), la: zonedToEpoch("2026-09-08T08:00", "America/Los_Angeles"),
+        winter: zonedToEpoch("2026-12-08T08:00", "America/Los_Angeles"), summer: zonedToEpoch("2026-07-08T08:00", "America/Los_Angeles"),
+        c19: { tz: chgTz(C("chg-019")), ts: chgTs(C("chg-019")) },
+        tx: chgTz(C("chg-012")), nm: chgTz(C("chg-016")), ca: chgTz(C("chg-029")), il: chgTz(C("chg-001")),
+        wall22: fmtTime(chgWall(C("chg-022"))), stored22: C("chg-022").time };
+    });
+    const H = 3600000;
+    eq("Phoenix is two hours behind Chicago on a September morning", (z.phx - z.chi) / H, 2);
+    eq("Denver is one hour behind Chicago", (z.den - z.chi) / H, 1);
+    eq("Los Angeles and Phoenix are the same clock in September", (z.la - z.phx) / H, 0);
+    ok("the same wall clock is a different instant in PST and PDT — the solve follows DST",
+      z.winter - z.summer !== 0 && (z.winter % H) - (z.summer % H) === 0);
+    ok(`a charge takes its zone from its address (TX ${z.tx} · NM ${z.nm} · CA ${z.ca} · IL ${z.il})`,
+      z.tx === "America/Chicago" && z.nm === "America/Denver" && z.ca === "America/Los_Angeles" && z.il === "America/Chicago");
+    ok(`an Arizona charge is an instant in Phoenix (${z.c19.tz})`, z.c19.tz === "America/Phoenix" && !isNaN(z.c19.ts));
+    ok(`a charge still displays its station-local clock (${z.stored22} → ${z.wall22})`, z.wall22 === "1:51 PM" && z.stored22 === "13:51");
+  }
+  {   /* the finished trip — sf-move's SF-arrival block. Fresh install: the seed carries 9:11 and no roll */
+    const SF = "2026-09-11T09:11";
+    const f6 = await page.evaluate(SF => { const t = T(), sf = t.stops.filter(s => !s.retired).pop(), r = dayStats(RT.DAYS);
+      return { at: t.log.arrivedAt.sf, arrivedT: r ? r.arrivedT : null, want: zonedToEpoch(SF, sf.tz), rolled: t.log.rolled.sf || null, d2d: r ? r.d2d : null }; }, SF);
+    eq("fresh install: arrivedAt.sf is 9:11", f6.at, SF);
+    eq("fresh install: the Day 6 arrival instant is 9:11 read in SF's own zone", f6.arrivedT, f6.want);
+    ok('fresh install: no Day 6 roll, so door to door stays "—" (not fabricated)', f6.rolled === null && f6.d2d === null);
+    /* the device that tapped: sf-move's TAPPED stamps, pasted. Day 6 is Coalinga → SF, one zone */
+    const TAPPED = { trip: { departDate: "2026-09-06",
+        arrived: { strobert: true, amarillo: true, holbrook: true, moms: true, coalinga: true, sf: true },
+        arrivedAt: { strobert: "2026-09-06T17:49", amarillo: "2026-09-07T19:30", holbrook: "2026-09-08T16:30", moms: "2026-09-09T12:45", coalinga: "2026-09-10T15:10", sf: SF },
+        rolled: { strobert: "2026-09-06T08:30", amarillo: "2026-09-07T07:19", holbrook: "2026-09-08T07:05", moms: "2026-09-09T08:15", coalinga: "2026-09-10T07:30", sf: "2026-09-11T06:40" } },
+      spend: { seededV1: false, entries: [] } };
+    await page.locator("#nav-back").click();
+    await page.waitForSelector("#page-trips.active");
+    await page.locator("#dataPaste").fill(JSON.stringify(TAPPED));
+    await page.locator("#dataImport").click();
+    await page.waitForFunction(() => /merged/.test(document.getElementById("dataStatus").textContent));
+    await page.locator(".trcard").first().click();
+    await page.waitForSelector("#page-trip.active");
+    const t6 = await page.evaluate(() => { const r = dayStats(RT.DAYS), r3 = dayStats(3);
+      return { d2d: r.d2d, rolledTz: r.rolledTz, tz: r.tz, d3: r3.d2d }; });
+    eq("tapped device: Day 6 is one zone, Coalinga → SF", `${t6.rolledTz} → ${t6.tz}`, "America/Los_Angeles → America/Los_Angeles");
+    eq(`tapped device: Day 6 door to door from 9:11 — ${hmS(naive(TAPPED.trip.rolled.sf, SF))} from a 06:40 roll`, t6.d2d, naive(TAPPED.trip.rolled.sf, SF));
+    eq("tapped device: Day 3 across the zone line keeps its two hours",
+      t6.d3, naive(TAPPED.trip.rolled.holbrook, TAPPED.trip.arrivedAt.holbrook) + 120);
+  }
+  {   /* a stop with no tz reads in the trip's FIRST stop's zone — never the phone's. The New-trip flow
+         will fill tz from the geocoder (Build 4); until then this fallback is the rule, and it is tested. */
+    const fb = await page.evaluate(() => {
+      const t = JSON.parse(JSON.stringify(T())), mid = t.stops[3];
+      delete mid.tz;
+      return { first: t.stops[0].tz, got: stopTz(mid, t), ownWhenSet: stopTz(T().stops[3], T()) };
+    });
+    eq("a stop without tz falls back to the first stop's zone", fb.got, fb.first);
+    eq("a stop with its own tz keeps it", fb.ownWhenSet, "America/Phoenix");
+  }
+  ok("no console errors in the time-zone block", errors.length === 0, errors.join(" | "));
+
+  /* ---- (n) port #6 — Minutes at each charger opens on the whole trip ---- */
+  console.log("\n(n) charger-day picker");
+  errors.length = 0;
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  const minCard = () => page.evaluate(() => {
+    const c = [...document.querySelectorAll("#tripStats .card")].find(k => /Minutes at each charger/.test(k.querySelector("h2").textContent));
+    const sel = c.querySelector('select[data-sel="chgDay"]');
+    return { pill: c.querySelector("label.pill").childNodes[0].textContent.trim(), first: sel.options[0].textContent,
+      firstVal: sel.options[0].value, value: sel.value, rows: c.querySelectorAll("[data-chg]").length,
+      chgDay: T().stats.chgDay === undefined ? null : T().stats.chgDay };
+  });
+  let mc = await minCard();
+  eq("fresh install: stats.chgDay is unset", mc.chgDay, null);
+  eq('"Trip · every logged session" is the first option', mc.first, "Trip · every logged session");
+  eq("…and the default", mc.value, "all");
+  eq("the pill reads it", mc.pill, "Trip · every logged session");
+  const allWant = await page.evaluate(() => liveCharges(T()).filter(c => !c.planned && c.kwh > 0 && c.min > 0).length);
+  eq("the card shows every logged session", mc.rows, allWant);
+  await page.locator('#tripStats select[data-sel="chgDay"]').selectOption("5");
+  await page.waitForTimeout(200);
+  mc = await minCard();
+  const d5Want = await page.evaluate(() => liveCharges(T()).filter(c => !c.planned && c.min > 0 && c.date && dayForDate(parseYMD(c.date)) === 5).length);
+  eq("pick Day 5 → the pill follows", mc.pill, "Day 5");
+  eq("pick Day 5 → only Day 5's sessions", mc.rows, d5Want);
+  ok("Day 5 is a real subset", d5Want > 0 && d5Want < allWant, `${d5Want} of ${allWant}`);
+  ok("no console errors on the charger-day picker", errors.length === 0, errors.join(" | "));
 
   await browser.close();
   /* Port #13: a routine run leaves the tree exactly as it found it */
