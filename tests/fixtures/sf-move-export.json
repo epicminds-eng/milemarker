@@ -134,15 +134,15 @@
       "spend.entries.exp-009": 0,
       "spend.entries.pl-001": 0,
       "spend.entries.pl-002": 0,
-      "disp.g-bag": 1790256636634,
-      "disp.r-skates": 1790256636774,
-      "disp.g-launch": 1790256636934,
-      "disp.wo-kb": 1790256637066,
-      "removed.w-printer": 1790256637266,
-      "packed.g-bag": 1790256637800,
-      "packed.r-skates": 1790256637882,
-      "spend.budget": 1790256639482,
-      "spend.entries.e1790256640532": 1790256640532
+      "disp.g-bag": 1790256636339,
+      "disp.r-skates": 1790256636339,
+      "disp.g-launch": 1790256636339,
+      "disp.wo-kb": 1790256636339,
+      "removed.w-printer": 1790256636339,
+      "packed.g-bag": 1790256636339,
+      "packed.r-skates": 1790256636339,
+      "spend.budget": 1790256636339,
+      "spend.entries.e1790256636339": 1790256636339
     },
     "stamped": true
   },
@@ -709,13 +709,13 @@
         "billsLater": false
       },
       {
-        "id": "e1790256640532",
+        "id": "e1790256636339",
         "amount": 18.72,
         "cat": "groceries",
         "note": "Water",
         "day": 6,
         "stopId": "sf",
-        "ts": 1790256640532,
+        "ts": 1790256636339,
         "planned": false,
         "billsLater": false
       }

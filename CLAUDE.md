@@ -9,7 +9,7 @@
 - sf-move is read-only reference; Build N = one session, one verified commit.
 - Cloud Claude Code sessions are OK for this repo — Chad works from his phone. A cloud session commits AND pushes; local gets `git pull` when he's next at the Mac.
 - Build 1 was the only local build (file copy from sf-move). Builds 2+ run cloud.
-- Bump the footer version + build date in index.html on every commit ("Mile Marker v1 · build YYYY-MM-DD · <hash|local>").
+- Bump the footer version + build date in index.html on every commit ("Mile Marker vN · build YYYY-MM-DD", no hash).
 - Spacing in new component CSS comes from the --s1…--s6 / --r / --r2 scale tokens; percentages for anything that flexes; absolute hairlines only.
 - Verify before claiming: every "Built" line in HANDOFF.md must be backed by `npm test` or a screenshot that was actually looked at.
 - No link or button announces that it is a link: never "Open in", "Link to", "Tap to", "Go to", "View", "Click" in a label — the label is the destination or the action noun ("Apple Maps", "Orbitz", "Log a charge"). Gate: `grep -n "Open in\|Link to\|Tap to\|Go to\|View \|Click" index.html` returns nothing.

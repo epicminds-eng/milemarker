@@ -20,7 +20,11 @@ import { writeFileSync, existsSync } from "node:fs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = "/tmp/sf-move/index.html";
-const OUT = join(ROOT, "tests", "fixtures", "sf-move-export.json");
+const OUT = process.env.FIXTURE_OUT || join(ROOT, "tests", "fixtures", "sf-move-export.json");   /* override: tests/smoke.mjs runs this twice into a temp dir */
+/* The page clock is pinned: sf-move stamps every write with Date.now() (meta.touched, seed ts, the hand
+   row's id "e<ms>" and ts), so two runs a few seconds apart used to differ in nine leaves. A frozen
+   Date.now makes the generator deterministic — two runs are byte-identical (smoke.mjs proves it). */
+const CLOCK = 1790256636339;
 const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 const PW_FALLBACK = "/opt/pw-browsers/chromium";
 const TAG = [                          /* [Sort item label, disposition] */
@@ -47,8 +51,12 @@ const launch = async () => {
 };
 
 const browser = await launch();
+/* timezoneId: sf-move stamps each seeded row's ts from its wall clock in the DEVICE zone, so the same
+   generator run in Auckland and in Chicago wrote different ts leaves. The committed fixture was made in
+   UTC (a cloud box); pinning the page zone keeps every host's output byte-identical to it. */
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA,
-  deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  deviceScaleFactor: 2, isMobile: true, hasTouch: true, timezoneId: "UTC" });
+await ctx.addInitScript(c => { Date.now = () => c; }, CLOCK);
 const page = await ctx.newPage();
 await page.goto(pathToFileURL(SRC).href);
 await page.evaluate(() => localStorage.clear());
@@ -119,7 +127,7 @@ await page.evaluate(PRE => {
   s.spend.entries.forEach(e => { if (PRE[e.id]) { e.planned = true; e.billsLater = PRE[e.id][1]; } });
   if (!s.spend.entries.some(e => e.id === "seed-m0"))
     s.spend.entries.push({ id: "seed-m0", amount: 240, cat: "misc", note: "Ship Sticks · 3 pieces", day: 0, stopId: null,
-      ts: Date.now(), planned: true, billsLater: false });
+      ts: Date.now(), planned: true, billsLater: false });   /* Date.now is the pinned CLOCK in-page */
   delete s.spend.spendCloseoutV1;
   localStorage.setItem("sfMoveApp_v1", JSON.stringify(s));
 }, PRE_V118);

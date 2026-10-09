@@ -4,14 +4,18 @@
 import { chromium } from "playwright";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
-import { mkdirSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const APP = pathToFileURL(join(ROOT, "index.html")).href;
 const SHOTS = join(ROOT, "shots");
 const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 const SF_EXPORT = join(ROOT, "tests", "fixtures", "sf-move-export.json");
+const FIXTURE_GEN = join(ROOT, "tests", "make-sf-move-fixture.mjs");
+const SF_MOVE_SRC = "/tmp/sf-move/index.html";   /* the generator's read-only source; the determinism check runs only when it is cloned */
 /* this box ships Chromium outside the Playwright cache and blocks the download; on a Mac the default wins */
 const PW_FALLBACK = "/opt/pw-browsers/chromium";
 const launchChromium = async () => {
@@ -838,6 +842,9 @@ const run = async () => {
       await page.waitForTimeout(200);
       await shot(page, `w${w}-4-spend-day${d}.png`);
     }
+    await page.evaluate(() => document.querySelector("#spProj2").scrollIntoView({ block: "center" }));
+    await page.waitForTimeout(200);
+    await shot(page, `w${w}-4-spend-projection.png`);
     await page.locator("#importLink").click();
     await page.waitForSelector(".modal-back textarea.imp");
     await noTilde(`${w} Import transactions sheet`);
@@ -1080,6 +1087,211 @@ const run = async () => {
   eq("pick Day 5 → only Day 5's sessions", mc.rows, d5Want);
   ok("Day 5 is a real subset", d5Want > 0 && d5Want < allWant, `${d5Want} of ${allWant}`);
   ok("no console errors on the charger-day picker", errors.length === 0, errors.join(" | "));
+
+
+  /* ---- (o) whole-trip charging share — the "126% charging" bug ----
+     The share divides charger minutes by door-to-door minutes, but only the days with BOTH stamps have a
+     door-to-door span. Summing every day's charger minutes over one stamped day's span read 126% on the
+     fixture. The fix keeps a second accumulator (charger minutes on stamped days only) for the share;
+     "Time at chargers" and its avg badge still read the all-days total. Every expected value here is
+     read from the app's own dayStats() rows, never typed in. */
+  console.log("\n(o) whole-trip charging share");
+  errors.length = 0;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector("#page-trip.active");
+  await page.locator("#nav-back").click();
+  await page.waitForSelector("#page-trips.active");
+  await page.locator("#dataPaste").fill(sfExport);
+  await page.locator("#dataImport").click();
+  await page.waitForFunction(() => /merged/.test(document.getElementById("dataStatus").textContent));
+  await page.locator(".trcard").first().click();
+  await page.waitForSelector("#page-trip.active");
+  await page.waitForTimeout(2800);   /* the import toast carries no percent, but let it clear before reading the page */
+  /* the app's own sums: every driven day's charger minutes vs only the stamped days' */
+  const sums = await page.evaluate(() => {
+    const t = tripStats(); let all = 0, stamped = 0, d2d = 0, stampedDays = 0;
+    t.days.forEach(r => { all += r.chMin; if (r.d2d !== null) { stamped += r.chMin; d2d += r.d2d; stampedDays++; } });
+    return { all, stamped, d2d, stampedDays, days: t.days.length, stops: realCharges().length,
+      tile: { chMin: t.chMin, d2dMin: t.d2dMin, chMinD2d: t.chMinD2d } };
+  });
+  ok(`the fixture has the condition: ${sums.stampedDays} of ${sums.days} driven days carry both stamps`, sums.stampedDays >= 1 && sums.stampedDays < sums.days);
+  ok("…and every day's charger minutes exceed the stamped span, so an unguarded share would read over 100%", sums.all > sums.d2d,
+    `${sums.all} charger minutes over ${sums.d2d} door-to-door minutes`);
+  ok("…while the stamped days' own minutes fit inside it", sums.stamped < sums.d2d, `${sums.stamped} of ${sums.d2d}`);
+  eq("tripStats().chMin is the all-days total", sums.tile.chMin, sums.all);
+  eq("tripStats().chMinD2d is the stamped-days total", sums.tile.chMinD2d, sums.stamped);
+  eq("tripStats().d2dMin is the stamped span", sums.tile.d2dMin, sums.d2d);
+  const wantShare = Math.round(sums.stamped / sums.d2d * 100);
+  const tiles = () => page.evaluate(() => {
+    const tile = n => [...document.querySelectorAll("#tripStats .kpis .kpi")].find(k => k.querySelector(".t").textContent === n);
+    const mini = n => [...document.querySelectorAll("#tripStats .mini > div")].find(k => k.querySelector(".t").textContent === n);
+    const nOf = k => { const n = k.querySelector(".n"); const b = n.querySelector(".d"); return { v: n.childNodes[0].textContent.trim(), badge: b ? b.textContent.trim() : "" }; };
+    const sh = mini("Charging share of the trip") || mini("Charging share of day");
+    return { road: nOf(tile("Time on the road")), chargers: nOf(tile("Time at chargers")),
+      share: { label: sh.querySelector(".t").textContent, v: nOf(sh).v, badge: nOf(sh).badge },
+      body: document.body.innerText };
+  });
+  const pct = s => { const m = /^(\d+)% charging$/.exec(s); return m ? +m[1] : null; };
+  for (const w of [390, 1194]) {
+    await page.setViewportSize({ width: w, height: w === 390 ? 844 : 834 });
+    await page.waitForTimeout(300);
+    const r = await tiles();
+    eq(`${w}: "Time on the road" badge is the stamped-days share`, r.road.badge, `${wantShare}% charging`);
+    ok(`${w}: …and it is at most 100%`, pct(r.road.badge) !== null && pct(r.road.badge) <= 100, r.road.badge);
+    eq(`${w}: "Charging share of the trip" agrees`, r.share.label + " " + r.share.v, `Charging share of the trip ${wantShare}%`);
+    ok(`${w}: …its sub-line pairs the share's own numerator with its span`, r.share.badge === (await page.evaluate(([a, b]) => hm(a) + " / " + hm(b), [sums.stamped, sums.d2d])), r.share.badge);
+    /* the all-days tile is untouched by the fix: value and badge read the all-days total, not the share's */
+    eq(`${w}: "Time at chargers" still reads every day's minutes`, r.chargers.v, await page.evaluate(m => hm(m), sums.all));
+    eq(`${w}: …and its avg badge divides the same total by the sessions`, r.chargers.badge, `avg ${Math.round(sums.all / sums.stops)}m`);
+    ok(`${w}: the all-days total is not the stamped one (so the tile and the share really read different sums)`, sums.all !== sums.stamped);
+    await shot(page, `w${w}-5-share.png`);
+    /* "126%" nowhere on any tab */
+    for (const tab of ["trip", "pack", "spend"]) {
+      await page.locator(`#nav-${tab}`).click();
+      await page.waitForSelector(`#page-${tab}.active`);
+      await page.waitForTimeout(150);
+      const txt = await page.evaluate(() => document.body.innerText);
+      ok(`${w} ${tab}: no "126%" anywhere`, !txt.includes("126%"));
+      const over = (txt.match(/(\d+)% charging/g) || []).map(m => +m).filter(v => v > 100);
+      eq(`${w} ${tab}: no "% charging" over 100`, over.join(","), "");
+    }
+    await page.locator("#nav-back").click();
+    await page.waitForSelector("#page-trips.active");
+    ok(`${w} Trips: no "126%" anywhere`, !(await page.evaluate(() => document.body.innerText)).includes("126%"));
+    await page.locator(".trcard").first().click();
+    await page.waitForSelector("#page-trip.active");
+    await page.waitForTimeout(200);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  /* a day without both stamps shows no share (Oct 8 board). Built in page: stamp a second day so the
+     trip keeps a stamped day, lift the first day's roll, read both scopes, put everything back. */
+  const liftDay = await page.evaluate(() => {
+    const t = T(), first = stopForDay(1), second = stopForDay(2);
+    const keptRoll2 = t.log.rolled[second.id], keptRoll1 = t.log.rolled[first.id];
+    t.log.rolled[second.id] = t.log.arrivedAt[second.id].slice(0, 11) + "07:19";   /* sf-move's tapped roll for Day 2 */
+    delete t.log.rolled[first.id];
+    save(state); renderStats();
+    return { first: first.id, second: second.id, keptRoll1, keptRoll2,
+      d1: dayStats(1).d2d, d2: dayStats(2).d2d, share: scopeStats().share };
+  });
+  ok("Day 1's roll lifted → Day 1 has no door-to-door", liftDay.d1 === null, JSON.stringify(liftDay));
+  ok("Day 2 stamped → Day 2 has one", liftDay.d2 > 0, JSON.stringify(liftDay));
+  await page.locator('#tripStats select[data-sel="scope"]').selectOption("1");
+  await page.waitForTimeout(200);
+  let lt = await tiles();
+  eq("scoped to the lifted day: no share on the tile", lt.road.badge, "");
+  eq("…and the day's charging share reads a dash", lt.share.label + " " + lt.share.v, "Charging share of day —");
+  await page.locator('#tripStats select[data-sel="scope"]').selectOption("trip");
+  await page.waitForTimeout(200);
+  lt = await tiles();
+  const liftWant = await page.evaluate(() => { let c = 0, d = 0; tripStats().days.forEach(r => { if (r.d2d !== null) { c += r.chMin; d += r.d2d; } }); return Math.round(c / d * 100); });
+  eq("whole trip: the share still renders, from the stamped day that is left", lt.road.badge, `${liftWant}% charging`);
+  ok("…at most 100%", pct(lt.road.badge) <= 100, lt.road.badge);
+  await page.evaluate(l => {
+    const t = T();
+    if (l.keptRoll1) t.log.rolled[l.first] = l.keptRoll1; else delete t.log.rolled[l.first];
+    if (l.keptRoll2) t.log.rolled[l.second] = l.keptRoll2; else delete t.log.rolled[l.second];
+    T().stats = {}; save(state); renderStats();
+  }, liftDay);
+  const back = await tiles();
+  eq("everything put back: the share reads as before", back.road.badge, `${wantShare}% charging`);
+  ok("no console errors on the charging share", errors.length === 0, errors.join(" | "));
+
+  /* ---- (q) port #18 (sf-move 4c24b14): a finished trip projects what it spent ---- */
+  console.log("\n(q) finished-trip projection");
+  errors.length = 0;
+  await page.locator("#nav-spend").click();
+  await page.waitForSelector("#page-spend.active");
+  await page.waitForTimeout(200);
+  const finT = await page.evaluate(() => {
+    const s = spendTotals(), last = RT.stops[RT.stops.length - 1];
+    return { done: s.done, lastArrived: !!T().log.arrived[last.id], proj: s.proj, soFar: s.soFar, chEst: s.chEst, foodEst: s.foodEst, tail: s.tail,
+      planned: s.plHotelPet + s.plOther, heroSoFar: document.getElementById("spSoFar").textContent, heroProj: document.getElementById("spProj").textContent,
+      cardProj: document.getElementById("spProj2").textContent, est: document.getElementById("spEst").innerText, money: money(s.soFar) };
+  });
+  ok("the fixture's last stop is arrived", finT.lastArrived);
+  eq("spendTotals().done", finT.done, true);
+  eq("spendTotals().proj === spendTotals().soFar", finT.proj, finT.soFar);
+  eq("no charging estimate on a finished trip", finT.chEst, 0);
+  eq("no food estimate on a finished trip", finT.foodEst, 0);
+  eq("no misc tail on a finished trip", finT.tail, 0);
+  eq("the Spend hero shows the same dollars twice", finT.heroSoFar + " · " + finT.heroProj, finT.money + " · " + finT.money);
+  eq("the Projection card shows them a third time", finT.cardProj, finT.money);
+  eq("the Projection card carries sf-move's finished-trip copy", finT.est,
+    "The trip is done, so projected is what was spent: nothing is left to estimate and no tail is held back.");
+  /* a done trip with a live fix mid-route still projects what it spent — remaining miles are not an estimate */
+  const live = await page.evaluate(() => {
+    const m = RT.stops[Math.floor(RT.stops.length / 2)];
+    tripPos = { lat: +m.lat, lng: +m.lng };
+    const s = spendTotals(), out = { miles: s.miles, total: RT.TOTAL, done: s.done, chEst: s.chEst, proj: s.proj, soFar: s.soFar };
+    tripPos = null;
+    return out;
+  });
+  ok("with a live fix mid-route the logged miles drop below the total", live.miles < live.total, `${live.miles} of ${live.total}`);
+  ok("…but the trip is still done, so nothing is estimated and projected is spent", live.done && live.chEst === 0 && live.proj === live.soFar, JSON.stringify(live));
+  /* under way, built in page and restored after: the last stop not arrived, miles below the total, the
+     clock inside the trip so days remain. Date is stubbed for the one call and put back. */
+  const under = await page.evaluate(() => {
+    const t = T(), last = RT.stops[RT.stops.length - 1], keptFlag = t.log.arrived[last.id];
+    delete t.log.arrived[last.id];
+    const RealDate = Date, FIXED = addDays(departDate(), 2).getTime() + 12 * 3600000;
+    window.Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(FIXED); } static now() { return FIXED; } };
+    let out;
+    try {
+      const s = spendTotals();
+      renderSpendTop();
+      out = { today: todayDay(), days: RT.DAYS, miles: s.miles, total: RT.TOTAL, done: s.done, proj: s.proj, soFar: s.soFar, chEst: s.chEst, foodEst: s.foodEst, tail: s.tail,
+        planned: s.plHotelPet + s.plOther, est: document.getElementById("spEst").innerText, heroProj: document.getElementById("spProj").textContent, heroSoFar: document.getElementById("spSoFar").textContent };
+    } finally {
+      window.Date = RealDate;
+      if (keptFlag) t.log.arrived[last.id] = keptFlag;
+      renderSpendTop();
+    }
+    out.restoredDone = spendTotals().done; out.restoredEst = document.getElementById("spEst").innerText;
+    return out;
+  });
+  ok("under way: the clock sits inside the trip", under.today < under.days, `${under.today} of ${under.days}`);
+  ok("under way: logged miles below the total", under.miles < under.total, `${under.miles} of ${under.total}`);
+  eq("under way: not done", under.done, false);
+  ok("under way: projected exceeds spent", under.proj > under.soFar, `${under.proj} vs ${under.soFar}`);
+  eq("the closed-out fixture has no planned rows", under.planned, 0);
+  ok("under way: proj − soFar is exactly the three estimates", Math.abs((under.proj - under.soFar) - (under.chEst + under.foodEst + under.tail)) < 1e-6,
+    `${under.proj - under.soFar} vs ${under.chEst + under.foodEst + under.tail}`);
+  ok("under way: charging estimate > 0", under.chEst > 0, String(under.chEst));
+  ok("under way: food estimate > 0", under.foodEst > 0, String(under.foodEst));
+  ok("under way: misc tail > 0", under.tail > 0, String(under.tail));
+  ok("under way: the hero shows two different figures", under.heroProj !== under.heroSoFar, `${under.heroSoFar} · ${under.heroProj}`);
+  ok("under way: the Projection card explains the estimate", /^Built from what’s known/.test(under.est), under.est.slice(0, 40));
+  ok("restored: done again, with the finished-trip copy", under.restoredDone === true && /^The trip is done/.test(under.restoredEst), under.restoredEst.slice(0, 40));
+  await page.evaluate(() => document.querySelector("#spProj2").scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(200);
+  await shot(page, "w390-6-projection.png");
+  ok("no console errors on the projection", errors.length === 0, errors.join(" | "));
+
+  /* ---- (s) footer rule (port #9): version + build date, no hash ---- */
+  console.log("\n(s) footer");
+  const footer = await page.evaluate(() => document.getElementById("appVer").innerText);
+  eq("#appVer reads the build's version and date", footer, "Mile Marker v7 · build 2026-10-09");
+  ok("…and nothing else: no third segment, no hash", /^Mile Marker v\d+ · build \d{4}-\d{2}-\d{2}$/.test(footer), footer);
+
+  /* ---- fixture determinism: the generator's page clock is pinned, so two runs are byte-identical ---- */
+  console.log("\nfixture generator determinism");
+  if (existsSync(SF_MOVE_SRC)) {
+    const dir = mkdtempSync(join(tmpdir(), "mm-fixture-"));
+    const sha = f => createHash("sha256").update(readFileSync(f)).digest("hex");
+    const outs = [];
+    for (const n of [1, 2]) {
+      const out = join(dir, `run${n}.json`);
+      execFileSync(process.execPath, [FIXTURE_GEN], { cwd: ROOT, env: { ...process.env, FIXTURE_OUT: out }, stdio: "pipe" });
+      outs.push(sha(out));
+    }
+    eq("two generator runs share one sha256", outs[0], outs[1]);
+    eq("and it is the committed fixture's", outs[0], sha(SF_EXPORT));
+  } else {
+    console.log(`  skip  ${SF_MOVE_SRC} is not cloned (git clone https://github.com/epicminds-eng/sf-move /tmp/sf-move && git -C /tmp/sf-move checkout a0489f4)`);
+  }
 
   await browser.close();
   /* Port #13: a routine run leaves the tree exactly as it found it */

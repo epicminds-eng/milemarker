@@ -613,7 +613,7 @@
     </div>
   </div>
 
-  <div class="appver" id="appVer">Mile Marker v6 · build 2026-09-24 · 31b8b21</div>
+  <div class="appver" id="appVer">Mile Marker v7 · build 2026-10-09</div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 </div>
@@ -1359,8 +1359,11 @@
   function tripStats(){
     var days=[],d;for(d=1;d<=RT.DAYS;d++){var r=dayStats(d);if(r)days.push(r);}
     var done=tripProgress().miles,left=Math.max(0,RT.TOTAL-done);
-    var driveMin=0,chMinTot=0,d2dMin=0,milesD2d=0,anyD2d=false;
-    days.forEach(function(r){chMinTot+=r.chMin;if(r.d2d!==null){anyD2d=true;driveMin+=Math.max(0,r.drive);d2dMin+=r.d2d;milesD2d+=r.miles;}});
+    /* two charger-minute sums: chMinTot over EVERY driven day feeds "Time at chargers" and avgMin; chMinD2d
+       only over days that have BOTH stamps is the share's numerator, so it is never divided by a shorter span
+       than it was summed over (the "126% charging" bug). A day without both stamps shows no share (Oct 8 board). */
+    var driveMin=0,chMinTot=0,chMinD2d=0,d2dMin=0,milesD2d=0,anyD2d=false;
+    days.forEach(function(r){chMinTot+=r.chMin;if(r.d2d!==null){anyD2d=true;driveMin+=Math.max(0,r.drive);d2dMin+=r.d2d;milesD2d+=r.miles;chMinD2d+=r.chMin;}});
     var real=realCharges(),kwh=0,cost=0;real.forEach(function(c){kwh+=c.kwh;cost+=c.cost||0;});
     var perKwh=kwh>0?cost/kwh:null,perMi=(done>0&&cost>0)?cost/done:null,whmi=(kwh>0&&done>0)?kwh/done*1000:null;
     var proj=(whmi!==null&&perKwh!==null)?left*whmi/1000*perKwh:null;
@@ -1373,7 +1376,7 @@
       var rolls=days.filter(function(r){return r.rolled;}).map(function(r){return r.rolled.getHours()*60+r.rolled.getMinutes();});
       if(rolls.length){var rollMin=rolls.reduce(function(a,b){return a+b;},0)/rolls.length,last=addDays(departDate(),RT.DAYS-1);eta=new Date(last.getFullYear(),last.getMonth(),last.getDate(),0,Math.round(rollMin+hrsPerDay*60));}
     }
-    return{days:days,done:done,left:left,pct:RT.TOTAL?done/RT.TOTAL*100:0,elapsed:elapsed,driveMin:anyD2d?driveMin:null,chMin:chMinTot,kwh:kwh,cost:cost,perKwh:perKwh,perMi:perMi,whmi:whmi,proj:proj,
+    return{days:days,done:done,left:left,pct:RT.TOTAL?done/RT.TOTAL*100:0,elapsed:elapsed,driveMin:anyD2d?driveMin:null,chMin:chMinTot,d2dMin:anyD2d?d2dMin:null,chMinD2d:anyD2d?chMinD2d:null,kwh:kwh,cost:cost,perKwh:perKwh,perMi:perMi,whmi:whmi,proj:proj,
       movingMph:(anyD2d&&driveMin>0)?milesD2d/(driveMin/60):null,best:rated[0]||null,worst:rated.length>1?rated[rated.length-1]:null,rated:rated,fast:fast,eta:eta,hrsPerDay:hrsPerDay,d2dMph:d2dMph,remDays:remDays};
   }
   function dayProg(d){   /* planned miles, miles so far and flags for one day */
@@ -1383,18 +1386,18 @@
     return{st:st,k:k,mi:mi,so:done?mi:so,done:done,started:done||so>0||!!t.log.rolled[st.id]};
   }
   function scopeStats(){   /* the numbers every card reads, for the page-wide scope */
-    var t=tripStats(),sd=scopeDay(),o={t:t,day:sd,sessions:[],d2d:null,drive:null,mph:null,chMin:0,kwh:0,cost:0,miles:0,rem:0};
+    var t=tripStats(),sd=scopeDay(),o={t:t,day:sd,sessions:[],d2d:null,drive:null,mph:null,chMin:0,chMinD2d:0,kwh:0,cost:0,miles:0,rem:0};
     if(sd===null){
       o.label="Whole trip";o.sessions=realCharges();o.miles=t.done;o.rem=t.left;o.kwh=t.kwh;o.cost=t.cost;o.mph=t.movingMph;
-      var d2d=0,dr=0,any=false;t.days.forEach(function(r){o.chMin+=r.chMin;if(r.d2d!==null){any=true;d2d+=r.d2d;dr+=Math.max(0,r.drive);}});
-      if(any){o.d2d=d2d;o.drive=dr;}
+      var d2d=0,dr=0,chD2d=0,any=false;t.days.forEach(function(r){o.chMin+=r.chMin;if(r.d2d!==null){any=true;d2d+=r.d2d;dr+=Math.max(0,r.drive);chD2d+=r.chMin;}});
+      if(any){o.d2d=d2d;o.drive=dr;o.chMinD2d=chD2d;}
     }else{
       var ds=dayStats(sd),dp=dayProg(sd);o.label="Day "+sd;o.ds=ds;o.miles=dp.so;o.rem=dp.mi-dp.so;o.leg=dp;
-      if(ds){o.sessions=ds.ch.filter(function(c){return c.kwh>0;});o.kwh=ds.kwh;o.cost=ds.cost;o.chMin=ds.chMin;o.d2d=ds.d2d;o.drive=ds.drive;o.mph=ds.mph;}
+      if(ds){o.sessions=ds.ch.filter(function(c){return c.kwh>0;});o.kwh=ds.kwh;o.cost=ds.cost;o.chMin=ds.chMin;o.chMinD2d=ds.d2d!==null?ds.chMin:0;o.d2d=ds.d2d;o.drive=ds.drive;o.mph=ds.mph;}
     }
     o.stops=o.sessions.length;o.perKwh=o.kwh>0?o.cost/o.kwh:null;o.perMi=(o.miles>0&&o.cost>0)?o.cost/o.miles:null;
     o.avgMin=o.stops?o.chMin/o.stops:null;o.longest=o.sessions.reduce(function(a,c){return (!a||(c.min||0)>(a.min||0))?c:a;},null);
-    o.pct=RT.TOTAL?o.miles/RT.TOTAL*100:0;o.share=(o.d2d>0)?o.chMin/o.d2d*100:null;
+    o.pct=RT.TOTAL?o.miles/RT.TOTAL*100:0;o.share=(o.d2d>0)?o.chMinD2d/o.d2d*100:null;   /* share: only the minutes on days with both stamps, over those days' spans */
     return o;
   }
   function kpi(cls,t,n,badge,bcls,s){return '<div class="kpi'+(cls?' '+cls:'')+'"><div class="t">'+t+'</div><div class="n">'+n+(badge?' <span class="d'+(bcls?' '+bcls:'')+'">'+badge+'</span>':'')+'</div><div class="s">'+s+'</div></div>';}
@@ -1457,11 +1460,12 @@
     var cds=allDays?null:dayStats(cd),cs=(allDays?realCharges():(cds?cds.ch:[])).filter(function(c){return c.min>0;});
     var dayOpts=[["all","Trip · every logged session"]];for(d=1;d<=RT.DAYS;d++){var sfd=stopForDay(d);dayOpts.push([d,"Day "+d+(sfd?" · "+(sfd.short||sfd.name):"")]);}
     var maxC=Math.max.apply(null,cs.map(function(c){return c.min;}).concat([1])),cmin=0;cs.forEach(function(c){cmin+=c.min;});
-    var tripD2d=0,anyD2d=false;t.days.forEach(function(r){if(r.d2d!==null){anyD2d=true;tripD2d+=r.d2d;}});
-    var cm=allDays?t.done:(cds?cds.miles:0),cd2d=allDays?(anyD2d?tripD2d:null):(cds?cds.d2d:null),cshare=(cd2d>0)?cmin/cd2d*100:null;
+    var tripD2d=0,tripChD2d=0,anyD2d=false;t.days.forEach(function(r){if(r.d2d!==null){anyD2d=true;tripD2d+=r.d2d;tripChD2d+=r.chMin;}});
+    /* the share's numerator is the charger minutes on days with both stamps, never the whole-trip cmin */
+    var cm=allDays?t.done:(cds?cds.miles:0),cd2d=allDays?(anyD2d?tripD2d:null):(cds?cds.d2d:null),cminD2d=allDays?tripChD2d:cmin,cshare=(cd2d>0)?cminD2d/cd2d*100:null;
     w.appendChild(card("Minutes at each charger",pillSel(allDays?"Trip · every logged session":"Day "+cd,"chgDay",dayOpts,cd),
       (cs.length?'<div class="hb">'+cs.map(function(c){var ratio=c.min/maxC;return '<div class="l" data-chg="'+esc(c.id)+'">'+esc(chgTiny(c,cs))+'<small>'+(allDays?esc(fmtShort(parseYMD(c.date)))+" ":"")+fmtTime(chgWall(c))+'</small></div><div class="tr"><i class="r" style="width:'+(ratio*100).toFixed(0)+'%;opacity:'+Math.max(.35,ratio).toFixed(2)+'"></i></div><div class="v">'+hm(c.min)+'</div>';}).join("")+'</div>':'<div class="empty">'+(allDays?"No sessions logged yet":"No sessions logged for Day "+cd)+'</div>')+
-      '<div class="mini three">'+mini(allDays?"Charging share of the trip":"Charging share of day",dash2(cshare,function(v){return Math.round(v)+"%";}),cshare!==null?hm(cmin)+" / "+hm(cd2d):"")+mini("Minutes per 100 mi",(cs.length&&cm)?String(Math.round(cmin/cm*100)):"—",cs.length?"min":"","k")+mini("Stops per 100 mi",(cs.length&&cm)?(cs.length/cm*100).toFixed(1):"—",cs.length&&cm?"every "+num(cm/cs.length)+" mi":"","k")+'</div>'));
+      '<div class="mini three">'+mini(allDays?"Charging share of the trip":"Charging share of day",dash2(cshare,function(v){return Math.round(v)+"%";}),cshare!==null?hm(cminD2d)+" / "+hm(cd2d):"")+mini("Minutes per 100 mi",(cs.length&&cm)?String(Math.round(cmin/cm*100)):"—",cs.length?"min":"","k")+mini("Stops per 100 mi",(cs.length&&cm)?(cs.length/cm*100).toFixed(1):"—",cs.length&&cm?"every "+num(cm/cs.length)+" mi":"","k")+'</div>'));
     /* Charging speed — pill toggles kWh/min ↔ $/min */
     var U=S2.speedUnit,sv=o.sessions.filter(function(c){return c.min>0;}).map(function(c){return{c:c,v:U==="usd"?(c.cost||0)/c.min:c.kwh/c.min};}).sort(function(a,b){return b.v-a.v;}),maxV=sv.length?sv[0].v:1;
     var note=sv.length?(U==="usd"?"Costliest minute was "+esc(chgShort(sv[0].c,o.sessions))+" at $"+sv[0].v.toFixed(2)+"/min — a slow plug at a high rate hurts twice.":"Fastest plug was "+esc(chgShort(sv[0].c,o.sessions))+" at "+sv[0].v.toFixed(2)+" kWh/min. Slower sessions = arrived with more battery."):"Log a charging session to rank the plugs.";
@@ -1810,11 +1814,15 @@
     var dEl=Math.min(todayDay(),RT.DAYS),remDays=Math.max(0,RT.DAYS-dEl);
     var hasKwh=chKwh>0,perKwh=hasKwh?chAmt/chKwh:KWH_FALLBACK;
     var foodDay=(dEl>0&&food>0)?food/dEl:FOOD_FALLBACK;
-    var chEst=remMiles*whPerMi()*perKwh,foodEst=foodDay*remDays;
-    var tail=hasRoute()?MISC_TAIL:0;
+    /* port #18 (sf-move 4c24b14): once the final stop is arrived the trip is over — nothing is left to
+       extrapolate and the misc tail has nothing to cover, so projected IS spent. Same value every
+       trip-complete state reads. */
+    var last=RT.stops[RT.stops.length-1],done=!!(t&&last&&t.log.arrived[last.id]);
+    var chEst=done?0:remMiles*whPerMi()*perKwh,foodEst=done?0:foodDay*remDays;
+    var tail=done?0:(hasRoute()?MISC_TAIL:0);
     var proj=soFar+plHotelPet+plOther+chEst+foodEst+tail;
     return{soFar:soFar,byCat:byCat,miles:miles,perMile:miles>0?soFar/miles:null,perDay:dEl>0?soFar/dEl:null,perKwh:perKwh,hasKwh:hasKwh,
-      proj:proj,plHotelPet:plHotelPet,plOther:plOther,nHotels:nHotels,chEst:chEst,foodDay:foodDay,tail:tail,budget:(t&&t.spend.budget)||null};
+      proj:proj,plHotelPet:plHotelPet,plOther:plOther,nHotels:nHotels,chEst:chEst,foodEst:foodEst,foodDay:foodDay,tail:tail,done:done,budget:(t&&t.spend.budget)||null};
   }
   function spendProj(){var t=spendTotals();return{soFar:t.soFar,proj:t.proj};}   /* the ONE projected total: the Spend hero and the progress flag both read this */
   var LEGEND=[["charging","Charging"],["hotel","Hotels"],["food","Food"],["groceries","Groceries"],["kane","Kane"],["gray","Tolls · parking · misc"]];
@@ -1836,7 +1844,8 @@
     $("budgetLink").textContent=t.budget?"Budget "+money(t.budget)+" · edit":"Set budget";
     var bo=$("budgetOver");bo.textContent=t.budget?(over?"· "+money(t.soFar-t.budget)+" over":"· "+money(t.budget-t.soFar)+" left"):"";bo.classList.toggle("over",over);
     renderTripProg();   /* seeds and edits land here first; refresh the strip from the same totals */
-    $("spEst").innerHTML="Built from what’s known: "+t.nHotels+" hotel"+(t.nHotels===1?"":"s")+" + pet fees ("+money(t.plHotelPet)+"), charging estimated from remaining miles at "+
+    $("spEst").innerHTML=t.done?"The trip is done, so projected is what was spent: nothing is left to estimate and no tail is held back.":
+      "Built from what’s known: "+t.nHotels+" hotel"+(t.nHotels===1?"":"s")+" + pet fees ("+money(t.plHotelPet)+"), charging estimated from remaining miles at "+
       (t.hasKwh?"your running <b>$"+t.perKwh.toFixed(2)+"</b>/kWh":"<b>$"+t.perKwh.toFixed(2)+"</b>/kWh (estimate)")+" ("+money(t.chEst)+"), food at "+
       (t.foodDay===FOOD_FALLBACK?"an estimated":"your running daily average of")+" "+money(t.foodDay)+"/day, tolls + parking + misc ("+money(t.plOther+t.tail)+"). Updates itself as real entries replace planned ones.";
   }
