@@ -1,7 +1,7 @@
 # Mile Marker — handoff
 
 ## Status
-v6 · Sep 24 · main = 31b8b21 (last content commit). Build 2.4, cloud session. index.html 2,843 lines. State in localStorage `mileMarker_v1` (+ `mileMarkerActive`, `mileMarkerSync`). The SF trip is pinned to sf-move v118 — the finished trip with its spend closed out — and every time on it is read in the zone it was written in.
+v6 · Sep 24 · Build 2.4 = 2e5e0cc (last app commit), cloud session. index.html 2,843 lines. State in localStorage `mileMarker_v1` (+ `mileMarkerActive`, `mileMarkerSync`). The SF trip is pinned to sf-move v118 — the finished trip with its spend closed out — and every time on it is read in the zone it was written in.
 
 ## Built
 - Seed re-pinned to sf-move v118 `a0489f4` (`SF_SEED_REV` index.html:2232). STOPS/CHARGES/EXPENSES/PLACES byte-identical to c04cb6c; seedSpend lifted from a0489f4 — pet fees seed-p2/p3/p5 and tolls seed-t1/t2 seed as ACTUALS at the same amounts, Ship Sticks (seed-m0) does not seed. A refresh drops a still-planned seed row the seed no longer carries (:2470), so an old install lands where sf-move's spendCloseoutV1 leaves a phone. Day 1 is now $307, not $302: seed-t1 is real. Verified: `npm test` (f), Day 1 derived from IMPORT_SF, no seed-m0 anywhere, Pre-trip $0 (shots/w1194-4-spend-day0.png, looked at).
@@ -30,5 +30,8 @@ Oct 9 (local, rules only): CLAUDE.md gained a Canary section and the board-room 
 Build 2.4 (cloud): re-pinned to v118's close-out, added the seed-row dismissal rule, ported #1 (time zones), #5 (tildes), #6 (charger-day default) and #7a (stat rows), extended the ledger, ran five mutations. One commit, pushed.
 
 ## Next
-- Build 3 — outlines + auto-fit projection + the Trip segmented control, with ports #2 #3 #7b #9 #10 #11 per docs/milemarker-ports-from-sf-move.md (cloud).
+- Build 3 is PARKED until the next road trip. Do not start it or offer it unprompted.
+- Before Build 3: the bottom-row navigation needs work. Chad sends a screenshot, then it goes to the board.
+- Build 3 decisions already made (Oct 8, board room): days without both stamps show no charging share; the segmented control regroups existing Trip content only; no BACKUPS chips and no Places layer in Build 3.
+- The Build 3 prompt lives in the board-room Build 1 report (base 2e5e0cc, target v7).
 - Worth a look before then: the 126% charging share and the finished-trip projection tail.
