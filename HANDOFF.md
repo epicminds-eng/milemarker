@@ -26,7 +26,7 @@ v6 · Sep 24 · Build 2.4 = 2e5e0cc (last app commit), cloud session. index.html
 - Ledger: docs/milemarker-ports-from-sf-move.md (17 rows). Tests: `npm test` (a–n), `TZ=Pacific/Auckland npm test`, `SHOTS=1 npm test` for shots/. Fixture: clone sf-move to /tmp/sf-move at the pinned rev, `node tests/make-sf-move-fixture.mjs`.
 
 ## Last session
-Oct 9 (local, rules only): CLAUDE.md gained a Canary section and the board-room chair-first rule (with the BOARD-REVIEWED: exception), copied verbatim from ~/.claude/CLAUDE.md. No app files touched, no version bump, no Playwright run. App state is still Build 2.4 below.
+Oct 9 (local, rules only): CLAUDE.md gained a Canary section and the board-room chair-first rule (with the BOARD-REVIEWED: exception), copied verbatim from ~/.claude/CLAUDE.md; later that day the Board room paragraph gained the /board fallback sentence for phone and cloud sessions (board-room Build 1.3.2). No app files touched, no version bump, no Playwright run. App state is still Build 2.4 below.
 Build 2.4 (cloud): re-pinned to v118's close-out, added the seed-row dismissal rule, ported #1 (time zones), #5 (tildes), #6 (charger-day default) and #7a (stat rows), extended the ledger, ran five mutations. One commit, pushed.
 
 ## Next
