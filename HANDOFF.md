@@ -1,7 +1,7 @@
 # Mile Marker — handoff
 
 ## Status
-v7 · Oct 9 · Build 3a = the one commit on 2df6f65 (hash in the session report; `git log -1`), cloud session. Numbers only: whole-trip charging share, finished-trip projection (port #18), fixture pin, footer rule (port #9). index.html 2,852 lines. State in localStorage `mileMarker_v1` (+ `mileMarkerActive`, `mileMarkerSync`). Seed still sf-move v118 `a0489f4`.
+v7 · Oct 9 · Build 3a = the one commit on 2df6f65 (hash in the session report; `git log -1`), cloud session. Numbers only: whole-trip charging share, finished-trip projection (port #18), fixture pin, footer rule (port #9). index.html 2,852 lines. State in localStorage `mileMarker_v1` (+ `mileMarkerActive`, `mileMarkerSync`). Seed still sf-move v118 `a0489f4`. Phone import ran Oct 9: sf-move data merged onto the SF trip.
 
 ## Built (this session)
 - Charging share: a second accumulator sums chMin ONLY on days with both stamps (`chMinD2d`, tripStats :1365 / scopeStats :1392 / chgDay card :1465); the share divides it by the summed door-to-door. "Time at chargers" and avgMin still read the all-days total — "11h 45m · avg 22m" is byte-identical before and after (captured from the unmodified app at step 0, re-read in (o)). On the fixture the tile now reads "9h 19m · 20% charging" (was 126%). A day without both stamps shows no share (Oct 8 board). Verified: `npm test` (o) at 390 and 1194, shots/w390-2d-trip-stats.png and w1194-2d-trip-stats.png looked at.
@@ -20,4 +20,7 @@ v7 · Oct 9 · Build 3a = the one commit on 2df6f65 (hash in the session report;
 - Ledger: docs/milemarker-ports-from-sf-move.md (18 rows). Tests: `npm test` (a–s), `TZ=Pacific/Auckland npm test`, `SHOTS=1 npm test` for shots/. Fixture: `git clone https://github.com/epicminds-eng/sf-move /tmp/sf-move && git -C /tmp/sf-move checkout a0489f4`, then `node tests/make-sf-move-fixture.mjs` (FIXTURE_OUT overrides the path).
 
 ## Next
+- ON HOLD since Oct 9 by Chad's choice. Do not start or offer the next build until he reopens it.
+- 3b board ask: Chad does not want to see the Sync and App data cards on the Trips screen. Proposal: one closed "Settings" row at the bottom of Trips holding both, with Import and Export still reachable.
+- 3b board ask: no manual import steps for Chad. Phone-only data gets baked in by the build from an export he sends.
 - Bottom-row navigation screenshot goes to the board, then /board 3b: five-segment control (dumb: text only, not sticky, no thumb, grid like .statrow), port #11 with todayFigures and the strip, header version stamp under the Trips h1, sub-tab persisted in its own localStorage key. 3c = map. Oct 9 board: D1 no (no owning stop; map nodes in 3c), D2 no (Places with its layer in 3c), D3 resolved by the split.
